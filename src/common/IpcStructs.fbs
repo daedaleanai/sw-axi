@@ -1,0 +1,9 @@
+
+namespace sw_axi.wire;
+
+table SimulatorInfo {
+  simulatorName:string;
+  pid:ulong;
+  uri:string;
+  hostname:string;
+}

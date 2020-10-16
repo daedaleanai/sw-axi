@@ -1,0 +1,9 @@
+*.so
+xelab*
+xsim*
+webtalk*
+xvlog*
+xsc*
+dump.vcd
+sim.prj
+*.wdb

@@ -49,7 +49,7 @@ namespace {
 class Bridge {
 public:
     /**
-     * Create a server socket at the given randez-vous point and wait for the client t connect
+     * Create a server socket at the given randez-vous point and wait for the client to connect
      *
      * @param uri an URI pointing to the rendez-vous point with the software client; currently only UNIX domain sockets
      *            are supported
@@ -209,4 +209,5 @@ extern "C" void sw_axi_disconnect(void *data) {
 
     Bridge *bridge = reinterpret_cast<Bridge *>(data);
     bridge->waitForDisconnect();
+    delete bridge;
 }

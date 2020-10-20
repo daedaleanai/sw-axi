@@ -74,13 +74,17 @@ int Bridge::connect(std::string uri) {
         disconnect();
     }
 
-    auto si = flatbuffers::GetRoot<wire::SimulatorInfo>(data.data());
+    auto msg = wire::GetMessage(data.data());
 
+    if (msg->type() != wire::Type_SIMULATOR_INFO) {
+        LOG << "[SW-AXI] Received an unexpected message from the simulator" << std::endl;
+        disconnect();
+    }
     simulatorInfo = std::make_unique<SimulatorInfo>();
-    simulatorInfo->simulatorName = si->simulatorName()->str();
-    simulatorInfo->pid = si->pid();
-    simulatorInfo->uri = si->uri()->str();
-    simulatorInfo->hostname = si->hostname()->str();
+    simulatorInfo->simulatorName = msg->simulatorInfo()->simulatorName()->str();
+    simulatorInfo->pid = msg->simulatorInfo()->pid();
+    simulatorInfo->uri = msg->simulatorInfo()->uri()->str();
+    simulatorInfo->hostname = msg->simulatorInfo()->hostname()->str();
     return 0;
 }
 

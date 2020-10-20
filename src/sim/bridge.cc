@@ -156,7 +156,12 @@ int Bridge::sendSimulatorInfo() {
     siBuilder.add_uri(uri);
     siBuilder.add_hostname(hostname);
     auto si = siBuilder.Finish();
-    builder.Finish(si);
+
+    sw_axi::wire::MessageBuilder msgBuilder(builder);
+    msgBuilder.add_type(sw_axi::wire::Type_SIMULATOR_INFO);
+    msgBuilder.add_simulatorInfo(si);
+    auto msg = msgBuilder.Finish();
+    builder.Finish(msg);
 
     if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
         return -1;

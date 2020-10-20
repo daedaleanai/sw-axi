@@ -1,9 +1,20 @@
 
 namespace sw_axi.wire;
 
+enum Type:byte {
+  SIMULATOR_INFO,
+}
+
 table SimulatorInfo {
   simulatorName:string;
   pid:ulong;
   uri:string;
   hostname:string;
 }
+
+table Message {
+  type:Type;
+  simulatorInfo:SimulatorInfo;
+}
+
+root_type Message;

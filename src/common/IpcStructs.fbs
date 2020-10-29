@@ -2,19 +2,49 @@
 namespace sw_axi.wire;
 
 enum Type:byte {
-  SIMULATOR_INFO,
+  SYSTEM_INFO,
+  IP_INFO,
+  ACK,
+  ERROR,
+  COMMIT
 }
 
-table SimulatorInfo {
-  simulatorName:string;
+enum IpType:byte {
+  SLAVE,
+  SLAVE_LITE,
+  SLAVE_STREAM,
+  MASTER,
+  MASTER_LITE,
+  MASTER_STREAM
+}
+
+enum ImplementationType:byte {
+  SOFTWARE,
+  HARDWARE
+}
+
+table SystemInfo {
+  name:string;
   pid:ulong;
   uri:string;
   hostname:string;
 }
 
+table IpInfo {
+  name:string;
+  startAddr:ulong;
+  endAddr:ulong;
+  startInterrupt:uint;
+  endInterrupt:uint;
+  type:IpType;
+  implementation:ImplementationType;
+}
+
 table Message {
   type:Type;
-  simulatorInfo:SimulatorInfo;
+  systemInfo:SystemInfo;
+  ipInfo:IpInfo;
+  errorMessage:string;
 }
 
 root_type Message;

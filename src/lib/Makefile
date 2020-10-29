@@ -10,7 +10,7 @@ IpcStructs_generated.h: ../common/IpcStructs.fbs
 > flatc --cpp $^
 
 libsw-axi.so: SwAxi.cc SwAxi.hh ../common/Utils.hh ../common/Utils.cc IpcStructs_generated.h
-> g++ -fPIC SwAxi.cc ../common/Utils.cc -shared -o libsw-axi.so
+> g++ -fPIC SwAxi.cc ../common/Utils.cc -shared -o libsw-axi.so -DVERBOSE
 
 format: SwAxi.cc SwAxi.hh ../common/Utils.hh ../common/Utils.cc
 > @$(code-format)

@@ -13,7 +13,7 @@ IpcStructs_generated.h: ../common/IpcStructs.fbs
 sw_axi.so: bridge.cc ../common/Utils.cc ../common/Utils.hh IpcStructs_generated.h
 > xsc bridge.cc ../common/Utils.cc -o sw_axi --cppversion 14 --gcc_compile_options '-DSIM_ID="`xsim --version`"'  --gcc_compile_options '-DVERBOSE'
 
-format: bridge.sv bridge.cc ../common/Utils.hh ../common/Utils.cc
+format: bridge.sv bridge.cc ../common/Utils.hh ../common/Utils.cc axi4lite.sv axi4lite.sv interfaces.sv package.sv remote.sv utils.sv
 > @$(code-format)
 
 clean:

@@ -33,8 +33,6 @@
 
 namespace sw_axi {
 
-Bridge::~Bridge() {}
-
 int Bridge::connect(std::string uri) {
     if (state != State::DISCONNECTED) {
         LOG << "[SW-AXI] The bridge needs to be disconnected for the connect operation to proceed" << std::endl;

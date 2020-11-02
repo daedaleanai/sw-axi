@@ -100,8 +100,6 @@ public:
  */
 class Bridge {
 public:
-    ~Bridge();
-
     /**
      * Connect to the SystemVerilog simulator
      *

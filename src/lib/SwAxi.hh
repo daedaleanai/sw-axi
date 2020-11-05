@@ -32,8 +32,8 @@ namespace sw_axi {
  */
 struct SystemInfo {
     std::string name;
+    std::string systemName;
     uint64_t pid;
-    std::string uri;
     std::string hostname;
 };
 
@@ -52,10 +52,10 @@ enum class IpImplementation { SOFTWARE, HARDWARE };
  */
 struct IpConfig {
     std::string name;
-    uint16_t startInterrupt = 0;  //!< Start of the interrupt range
-    uint16_t endInterrupt = 0;  //!< End of the interrupt range
-    uint64_t startAddress = 0;  //!< Start of the address range
-    uint64_t endAddress = 0;  //!< End of the address range
+    uint64_t address = 0;  //!< Address of the slave
+    uint64_t size = 0;  //!< Size of the address space allocated to the slave
+    uint16_t firstInterrupt = 0;  //!< Number of the first interrupt allocated to the slave
+    uint16_t numInterrupts = 0;  //!< Number of interrupts allocated to the slave
     IpType type = IpType::SLAVE;
     IpImplementation implementation = IpImplementation::SOFTWARE;
 };
@@ -100,6 +100,8 @@ public:
  */
 class Bridge {
 public:
+    Bridge(const std::string &name = "unnamed") : name(name) {}
+
     /**
      * Connect to the SystemVerilog simulator
      *
@@ -111,11 +113,11 @@ public:
     int connect(std::string uri = "unix:///tmp/sw-axi");
 
     /**
-     * Retrieve the information about the remote system.
+     * Retrieve the information about the router
      *
      * @return a filled SystemInfo struct if the bridge is connected; a null pointer if it isn't
      */
-    const SystemInfo *getRemoteSystemInfo() const;
+    const SystemInfo *getRouterInfo() const;
 
     /**
      * Register a software slave with the given parameters. The bridge takes the ownership of thw slave object.
@@ -141,13 +143,22 @@ public:
     int start();
 
     /**
-     * Enumerate the IP connected to the bridge
+     * Enumerate the available IP blocks
      *
      * @param ip reference to a vector to be filled with the IP information
      *
      * @return 0 on success; -1 on failure
      */
     int enumerateIp(std::vector<IpConfig> &ip);
+
+    /**
+     * Enumerate the connected peers
+     *
+     * @param peers reference to a vector to be filled with peer information
+     *
+     * @return 0 on success; -1 on failure
+     */
+    int enumeratePeers(std::vector<SystemInfo> &si);
 
     /**
      * Disconnect from the simulator.
@@ -162,17 +173,14 @@ private:
         STARTED,
     };
 
-    struct SlaveData {
-        uint64_t endAddr;
-        Slave *slave;
-    };
-
     State state = State::DISCONNECTED;
     std::string connectedUri;
     int sock = -1;
-    std::unique_ptr<SystemInfo> systemInfo;
+    std::unique_ptr<SystemInfo> routerInfo;
+    std::vector<SystemInfo> peers;
     std::vector<IpConfig> ipBlocks;
-    std::map<uint64_t, SlaveData> slaveMap;
+    std::map<uint64_t, Slave *> slaveMap;
+    std::string name;
 };
 
 }  // namespace sw_axi

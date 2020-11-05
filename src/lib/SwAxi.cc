@@ -69,23 +69,20 @@ int Bridge::connect(std::string uri) {
 
     connectedUri = uri;
 
-    char hn[256];
-    hn[0] = 0;
-    gethostname(hn, 256);
     std::ostringstream o;
     utsname sysInfo;
     uname(&sysInfo);
-    o << sysInfo.sysname << " " << sysInfo.nodename << " " << sysInfo.release << " " << sysInfo.version;
+    o << sysInfo.sysname << " C++";
 
     flatbuffers::FlatBufferBuilder builder(1024);
-    auto name = builder.CreateString(o.str());
-    auto uriStr = builder.CreateString(connectedUri);
-    auto hostname = builder.CreateString(hn);
+    auto bName = builder.CreateString(name);
+    auto sysName = builder.CreateString(o.str());
+    auto hName = builder.CreateString(sysInfo.nodename);
     sw_axi::wire::SystemInfoBuilder siBuilder(builder);
-    siBuilder.add_name(name);
+    siBuilder.add_name(bName);
+    siBuilder.add_systemName(sysName);
     siBuilder.add_pid(getpid());
-    siBuilder.add_uri(uriStr);
-    siBuilder.add_hostname(hostname);
+    siBuilder.add_hostname(hName);
     auto si = siBuilder.Finish();
 
     sw_axi::wire::MessageBuilder msgBuilder(builder);
@@ -105,7 +102,6 @@ int Bridge::connect(std::string uri) {
         disconnect();
         return -1;
     }
-
     auto msg = wire::GetMessage(data.data());
 
     if (msg->type() != wire::Type_SYSTEM_INFO) {
@@ -114,17 +110,17 @@ int Bridge::connect(std::string uri) {
         return -1;
     }
 
-    systemInfo = std::make_unique<SystemInfo>();
-    systemInfo->name = msg->systemInfo()->name()->str();
-    systemInfo->pid = msg->systemInfo()->pid();
-    systemInfo->uri = msg->systemInfo()->uri()->str();
-    systemInfo->hostname = msg->systemInfo()->hostname()->str();
+    routerInfo = std::make_unique<SystemInfo>();
+    routerInfo->name = msg->systemInfo()->name()->str();
+    routerInfo->systemName = msg->systemInfo()->systemName()->str();
+    routerInfo->pid = msg->systemInfo()->pid();
+    routerInfo->hostname = msg->systemInfo()->hostname()->str();
     state = State::CONNECTED;
     return 0;
 }
 
-const SystemInfo *Bridge::getRemoteSystemInfo() const {
-    return systemInfo.get();
+const SystemInfo *Bridge::getRouterInfo() const {
+    return routerInfo.get();
 }
 
 int Bridge::registerSlave(Slave *slave, const IpConfig &config) {
@@ -137,8 +133,8 @@ int Bridge::registerSlave(Slave *slave, const IpConfig &config) {
     auto fbName = builder.CreateString(config.name);
     sw_axi::wire::IpInfoBuilder ipBuilder(builder);
     ipBuilder.add_name(fbName);
-    ipBuilder.add_startAddr(config.startAddress);
-    ipBuilder.add_endAddr(config.endAddress);
+    ipBuilder.add_address(config.address);
+    ipBuilder.add_size(config.size);
     ipBuilder.add_implementation(wire::ImplementationType_SOFTWARE);
 
     switch (config.type) {
@@ -177,14 +173,14 @@ int Bridge::registerSlave(Slave *slave, const IpConfig &config) {
         return -1;
     }
 
-    if (msg->type() != wire::Type_ACK) {
+    if (msg->type() != wire::Type_IP_ACK) {
         LOG << "[SW-AXI] Got an unexpected response while registering IP " << config.name << ": ";
         LOG << msg->type() << std::endl;
         disconnect();
         return -1;
     }
 
-    slaveMap[config.startAddress] = {config.endAddress, slave};
+    slaveMap[msg->ipId()] = slave;
     return 0;
 }
 
@@ -207,7 +203,7 @@ int Bridge::commitIp() {
 
     std::vector<uint8_t> data;
     if (readFromSocket(sock, data) == -1) {
-        LOG << "[SW-AXI] Error while receiving the simulator info" << std::endl;
+        LOG << "[SW-AXI] Error while receiving commit acknowledgement" << std::endl;
         disconnect();
         return -1;
     }
@@ -237,9 +233,44 @@ int Bridge::start() {
         return -1;
     }
 
-    // Read the IP info reported by the simulator
     std::vector<uint8_t> data;
     const wire::Message *msg;
+
+    // Read the system info of all the registered systems
+    while (true) {
+        if (readFromSocket(sock, data) == -1) {
+            LOG << "[SW-AXI] Error while receiving the simulator info" << std::endl;
+            disconnect();
+            return -1;
+        }
+        msg = wire::GetMessage(data.data());
+
+        if (msg->type() != wire::Type_SYSTEM_INFO) {
+            break;
+        }
+
+        SystemInfo si;
+        si.name = msg->systemInfo()->name()->str();
+        si.systemName = msg->systemInfo()->systemName()->str();
+        si.pid = msg->systemInfo()->pid();
+        si.hostname = msg->systemInfo()->hostname()->str();
+        peers.push_back(si);
+    }
+
+    if (msg->type() == wire::Type_ERROR) {
+        LOG << "[SW-AXI] Error while receiving the peer list: " << msg->errorMessage()->str() << std::endl;
+        disconnect();
+        return -1;
+    }
+
+    if (msg->type() != wire::Type_ACK) {
+        LOG << "[SW-AXI] Got an unexpected response while receiving peer list: ";
+        LOG << msg->type() << std::endl;
+        disconnect();
+        return -1;
+    }
+
+    // Read the IP info of all the registered IP blocks
     while (true) {
         if (readFromSocket(sock, data) == -1) {
             LOG << "[SW-AXI] Error while receiving the simulator info" << std::endl;
@@ -254,8 +285,10 @@ int Bridge::start() {
 
         IpConfig ip;
         ip.name = msg->ipInfo()->name()->str();
-        ip.startAddress = msg->ipInfo()->startAddr();
-        ip.endAddress = msg->ipInfo()->endAddr();
+        ip.address = msg->ipInfo()->address();
+        ip.size = msg->ipInfo()->size();
+        ip.firstInterrupt = msg->ipInfo()->firstInterrupt();
+        ip.numInterrupts = msg->ipInfo()->numInterrupts();
 
         switch (msg->ipInfo()->type()) {
         case wire::IpType_SLAVE_LITE:
@@ -279,7 +312,7 @@ int Bridge::start() {
     }
 
     if (msg->type() != wire::Type_ACK) {
-        LOG << "[SW-AXI] Got an unexpected response while committing IP: ";
+        LOG << "[SW-AXI] Got an unexpected response while receibing IP list: ";
         LOG << msg->type() << std::endl;
         disconnect();
         return -1;
@@ -298,6 +331,15 @@ int Bridge::enumerateIp(std::vector<IpConfig> &ip) {
     return 0;
 }
 
+int Bridge::enumeratePeers(std::vector<SystemInfo> &peers) {
+    if (state != State::STARTED) {
+        LOG << "[SW-AXI] The bridge needs to be started in order to enumerate peers" << std::endl;
+        return -1;
+    }
+    peers = this->peers;
+    return 0;
+}
+
 void Bridge::disconnect() {
     if (sock == -1) {
         LOG << "[SW-AXI] Not connected" << std::endl;
@@ -308,11 +350,11 @@ void Bridge::disconnect() {
     state = State::DISCONNECTED;
     connectedUri = "";
     sock = -1;
-    systemInfo.reset(nullptr);
+    routerInfo.reset(nullptr);
     ipBlocks.clear();
 
     for (auto &entry : slaveMap) {
-        delete entry.second.slave;
+        delete entry.second;
     }
     slaveMap.clear();
 }

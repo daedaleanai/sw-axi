@@ -17,27 +17,28 @@ public:
 int main(int argc, char **argv) {
     using namespace sw_axi;
 
-    Bridge bridge;
+    Bridge bridge("01-handshake-cpp");
 
     if (bridge.connect() != 0) {
-        std::cerr << "Unable to connect to the simulator" << std::endl;
+        std::cerr << "Unable to connect to the router" << std::endl;
         return 1;
     }
 
-    std::cerr << "Connected to the simulation system" << std::endl;
-    const SystemInfo *info = bridge.getRemoteSystemInfo();
-    std::cerr << "Name:     " << info->name << std::endl;
-    std::cerr << "Pid:      " << info->pid << std::endl;
-    std::cerr << "URI:      " << info->uri << std::endl;
-    std::cerr << "Hostname: " << info->hostname << std::endl;
+    std::cerr << "Connected to the router:" << std::endl;
+    const SystemInfo *rInfo = bridge.getRouterInfo();
+    std::cerr << "Name:        " << rInfo->name << std::endl;
+    std::cerr << "System Name: " << rInfo->systemName << std::endl;
+    std::cerr << "Pid:         " << rInfo->pid << std::endl;
+    std::cerr << "Hostname:    " << rInfo->hostname << std::endl;
+    std::cerr << std::endl;
 
     Ram *ram = new Ram;
     IpConfig ramConfig = {
             .name = "Soft-RAM",
-            .startInterrupt = 0,
-            .endInterrupt = 0,
-            .startAddress = 0x1000,
-            .endAddress = 0x2000,
+            .address = 0x1000,
+            .size = 0x2000,
+            .firstInterrupt = 0,
+            .numInterrupts = 0,
             .type = IpType::SLAVE_LITE,
             .implementation = IpImplementation::SOFTWARE};
 
@@ -55,6 +56,20 @@ int main(int argc, char **argv) {
         std::cerr << "Unable to start the bridge" << std::endl;
         return 1;
     }
+
+    std::vector<SystemInfo> peers;
+    if (bridge.enumeratePeers(peers) != 0) {
+        std::cerr << "Unable to enumerate peers" << std::endl;
+        return 1;
+    }
+
+    std::cerr << "Peers: " << std::endl;
+    for (auto &peer : peers) {
+        std::cerr << std::left << std::setfill(' ') << std::setw(20) << peer.name << " ";
+        std::cerr << std::left << std::setfill(' ') << std::setw(20) << peer.systemName << " ";
+        std::cerr << peer.hostname << ":" << peer.pid << std::endl;
+    }
+    std::cerr << std::endl;
 
     std::vector<IpConfig> ipBlocks;
     if (bridge.enumerateIp(ipBlocks) != 0) {
@@ -75,12 +90,15 @@ int main(int argc, char **argv) {
             std::cerr << "[SLAVE LITE] ";
             break;
         }
+        std::cerr << std::right;
         std::cerr << "address: ";
-        std::cerr << "[0x" << std::hex << std::setfill('0') << std::setw(16) << ip.startAddress << ":";
-        std::cerr << "0x" << std::hex << std::setfill('0') << std::setw(16) << ip.endAddress << "] ";
+        std::cerr << "[0x" << std::hex << std::setfill('0') << std::setw(16) << ip.address << "+";
+        std::cerr << "0x" << std::hex << std::setfill('0') << std::setw(16) << ip.size << "] ";
         std::cerr << "interrupts: [";
-        std::cerr << std::setfill('0') << std::setw(5) << ip.startInterrupt << ":";
-        std::cerr << std::setfill('0') << std::setw(5) << ip.endInterrupt << "] ";
+        std::cerr << std::dec;
+        std::cerr << std::setfill('0') << std::setw(5) << ip.firstInterrupt << "+";
+        if (ip.numInterrupts == 0)
+            std::cerr << std::setfill('0') << std::setw(5) << ip.numInterrupts << "] ";
         std::cerr << ip.name << " " << std::endl;
     }
 

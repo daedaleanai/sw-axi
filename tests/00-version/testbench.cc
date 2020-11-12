@@ -5,20 +5,19 @@
 int main(int argc, char **argv) {
     using namespace sw_axi;
 
-    Bridge bridge;
+    Bridge bridge("00-version");
 
     if (bridge.connect() != 0) {
-        std::cerr << "Unable to connect to the simulation system" << std::endl;
+        std::cerr << "Unable to connect to the router" << std::endl;
         return 1;
     }
 
-    std::cerr << "Connected simulation system" << std::endl;
-    const SystemInfo *info = bridge.getRemoteSystemInfo();
-    std::cerr << "Name:     " << info->name << std::endl;
-    std::cerr << "Pid:      " << info->pid << std::endl;
-    std::cerr << "URI:      " << info->uri << std::endl;
-    std::cerr << "Hostname: " << info->hostname << std::endl;
-
+    std::cerr << "Connected to the router:" << std::endl;
+    const SystemInfo *rInfo = bridge.getRouterInfo();
+    std::cerr << "Name:        " << rInfo->name << std::endl;
+    std::cerr << "System Name: " << rInfo->systemName << std::endl;
+    std::cerr << "Pid:         " << rInfo->pid << std::endl;
+    std::cerr << "Hostname:    " << rInfo->hostname << std::endl;
     std::cerr << "Disconnecting" << std::endl;
     bridge.disconnect();
 

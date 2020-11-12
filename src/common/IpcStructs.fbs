@@ -4,6 +4,7 @@ namespace sw_axi.wire;
 enum Type:byte {
   SYSTEM_INFO,
   IP_INFO,
+  IP_ACK,
   ACK,
   ERROR,
   COMMIT
@@ -25,17 +26,17 @@ enum ImplementationType:byte {
 
 table SystemInfo {
   name:string;
+  systemName:string;
   pid:ulong;
-  uri:string;
   hostname:string;
 }
 
 table IpInfo {
   name:string;
-  startAddr:ulong;
-  endAddr:ulong;
-  startInterrupt:uint;
-  endInterrupt:uint;
+  address:ulong;
+  size:ulong;
+  firstInterrupt:ushort;
+  numInterrupts:ushort;
   type:IpType;
   implementation:ImplementationType;
 }
@@ -44,6 +45,7 @@ table Message {
   type:Type;
   systemInfo:SystemInfo;
   ipInfo:IpInfo;
+  ipId:ulong;
   errorMessage:string;
 }
 

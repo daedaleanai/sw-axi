@@ -312,7 +312,7 @@ int Bridge::start() {
     }
 
     if (msg->type() != wire::Type_ACK) {
-        LOG << "[SW-AXI] Got an unexpected response while receibing IP list: ";
+        LOG << "[SW-AXI] Got an unexpected response while receiving IP list: ";
         LOG << msg->type() << std::endl;
         disconnect();
         return -1;

@@ -33,28 +33,24 @@
 
 namespace sw_axi {
 
-int Bridge::connect(std::string uri) {
+Status Bridge::connect(std::string uri) {
     if (state != State::DISCONNECTED) {
-        LOG << "[SW-AXI] The bridge needs to be disconnected for the connect operation to proceed" << std::endl;
-        return -1;
+        return Status(1, "The bridge needs to be disconnected for the connect operation to proceed");
     }
 
     if (uri.length() < 8 || uri.find("unix://") != 0) {
-        LOG << "[SW-AXI] Can only communicate over UNIX domain sockets " << uri << std::endl;
-        return -1;
+        return Status(1, "Can only communicate over UNIX domain sockets:" + uri);
     }
     std::string path = uri.substr(7);
 
     sockaddr_un addr;
     if (path.length() > sizeof(addr.sun_path) - 1) {
-        LOG << "[SW-AXI] Path too long: " << path << std::endl;
-        return -1;
+        return Status(1, "Path too long: " + path);
     }
 
     sock = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock == -1) {
-        LOG << "[SW-AXI] Unable to create a UNIX socket: " << strerror(errno) << std::endl;
-        return -1;
+        return Status(1, std::string("Unable to create a UNIX socket: ") + strerror(errno));
     }
 
     memset(&addr, 0, sizeof(sockaddr_un));
@@ -62,9 +58,8 @@ int Bridge::connect(std::string uri) {
     strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
 
     if (::connect(sock, reinterpret_cast<sockaddr *>(&addr), sizeof(sockaddr_un)) == -1) {
-        LOG << "[SW-AXI] Unable to connect to the UNIX socket " << path << ": " << strerror(errno) << std::endl;
         disconnect();
-        return -1;
+        return Status(1, std::string("Unable to connect to the UNIX socket ") + path + ": " + strerror(errno));
     }
 
     connectedUri = uri;
@@ -91,23 +86,20 @@ int Bridge::connect(std::string uri) {
     builder.Finish(msgBuilder.Finish());
 
     if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
-        LOG << "[SW-AXI] Error while sending the system info" << std::endl;
         disconnect();
-        return -1;
+        return Status(1, std::string("Error while sending the system info: ") + strerror(errno));
     }
 
     std::vector<uint8_t> data;
     if (readFromSocket(sock, data) == -1) {
-        LOG << "[SW-AXI] Error while receiving the system info" << std::endl;
         disconnect();
-        return -1;
+        return Status(1, std::string("Error while receiving the router's system info:") + strerror(errno));
     }
     auto msg = wire::GetMessage(data.data());
 
     if (msg->type() != wire::Type_SYSTEM_INFO) {
-        LOG << "[SW-AXI] Received an unexpected message from the simulator" << std::endl;
         disconnect();
-        return -1;
+        return Status(1, "Received an unexpected message from the router: " + std::to_string(int(msg->type())));
     }
 
     routerInfo = std::make_unique<SystemInfo>();
@@ -116,17 +108,16 @@ int Bridge::connect(std::string uri) {
     routerInfo->pid = msg->systemInfo()->pid();
     routerInfo->hostname = msg->systemInfo()->hostname()->str();
     state = State::CONNECTED;
-    return 0;
+    return Status();
 }
 
 const SystemInfo *Bridge::getRouterInfo() const {
     return routerInfo.get();
 }
 
-int Bridge::registerSlave(Slave *slave, const IpConfig &config) {
+Status Bridge::registerSlave(Slave *slave, const IpConfig &config) {
     if (state != State::CONNECTED) {
-        LOG << "[SW-AXI] Can register slaves only in CONNECTED mode" << std::endl;
-        return -1;
+        return Status(1, "Can register slaves only in CONNECTED mode");
     }
 
     flatbuffers::FlatBufferBuilder builder(1024);
@@ -142,9 +133,7 @@ int Bridge::registerSlave(Slave *slave, const IpConfig &config) {
         ipBuilder.add_type(wire::IpType_SLAVE_LITE);
         break;
     default:
-        LOG << "[SW-AXI] Unknown slave type for slave " << config.name << ": ";
-        LOG << int(config.type) << std::endl;
-        return -1;
+        return Status(1, "Unknown slave type for slave: " + std::to_string(int(config.type)));
     }
     auto ip = ipBuilder.Finish();
 
@@ -154,40 +143,38 @@ int Bridge::registerSlave(Slave *slave, const IpConfig &config) {
     builder.Finish(msgBuilder.Finish());
 
     if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
-        LOG << "[SW-AXI] Error while sending the SIMULATOR_INFO message to software" << std::endl;
         disconnect();
-        return -1;
+        return Status(1, std::string("Error while sending the IP_INFO message to router: ") + strerror(errno));
     }
 
     std::vector<uint8_t> data;
     if (readFromSocket(sock, data) == -1) {
-        LOG << "[SW-AXI] Error while receiving response to IP registration" << std::endl;
         disconnect();
-        return -1;
+        return Status(1, std::string("Error while receiving response to IP registration ") + strerror(errno));
     }
 
     auto msg = wire::GetMessage(data.data());
     if (msg->type() == wire::Type_ERROR) {
-        LOG << "[SW-AXI] Cannot register IP " << config.name << ": " << msg->errorMessage()->str() << std::endl;
+        std::ostringstream o;
+        o << "Cannot register IP " << config.name << ": " << msg->errorMessage()->str();
         disconnect();
-        return -1;
+        return Status(1, o.str());
     }
 
     if (msg->type() != wire::Type_IP_ACK) {
-        LOG << "[SW-AXI] Got an unexpected response while registering IP " << config.name << ": ";
-        LOG << msg->type() << std::endl;
+        std::ostringstream o;
+        o << "Got an unexpected response while registering IP " << config.name << ": " << msg->type();
         disconnect();
-        return -1;
+        return Status(1, o.str());
     }
 
     slaveMap[msg->ipId()] = slave;
-    return 0;
+    return Status();
 }
 
-int Bridge::commitIp() {
+Status Bridge::commitIp() {
     if (state != State::CONNECTED) {
-        LOG << "[SW-AXI] Can commit slaves only in CONNECTED mode" << std::endl;
-        return -1;
+        return Status(1, "Can commit slaves only in CONNECTED mode");
     }
 
     flatbuffers::FlatBufferBuilder builder(1024);
@@ -196,41 +183,39 @@ int Bridge::commitIp() {
     builder.Finish(msgBuilder.Finish());
 
     if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
-        LOG << "[SW-AXI] Error while sending the COMMIT message" << std::endl;
         disconnect();
-        return -1;
+        return Status(1, std::string("Error while sending the COMMIT message: ") + strerror(errno));
     }
 
     std::vector<uint8_t> data;
     if (readFromSocket(sock, data) == -1) {
-        LOG << "[SW-AXI] Error while receiving commit acknowledgement" << std::endl;
         disconnect();
-        return -1;
+        return Status(1, std::string("Error while receiving commit acknowledgement: ") + strerror(errno));
     }
 
     auto msg = wire::GetMessage(data.data());
     if (msg->type() == wire::Type_ERROR) {
-        LOG << "[SW-AXI] Cannot register IP: " << msg->errorMessage()->str() << std::endl;
+        std::ostringstream o;
+        o << "Cannot register IP: " << msg->errorMessage()->str();
         disconnect();
-        return -1;
+        return Status(1, o.str());
     }
 
     if (msg->type() != wire::Type_ACK) {
-        LOG << "[SW-AXI] Got an unexpected response while committing IP: ";
-        LOG << msg->type() << std::endl;
+        std::ostringstream o;
+        o << "[SW-AXI] Got an unexpected response while committing IP: " << msg->type();
         disconnect();
-        return -1;
+        return Status(1, o.str());
     }
 
     state = State::COMMITTED;
 
-    return 0;
+    return Status();
 }
 
-int Bridge::start() {
+Status Bridge::start() {
     if (state != State::COMMITTED) {
-        LOG << "[SW-AXI] The bridge needs to be COMMITTED in order to start" << std::endl;
-        return -1;
+        return Status(1, "The bridge needs to be COMMITTED in order to start");
     }
 
     std::vector<uint8_t> data;
@@ -239,9 +224,8 @@ int Bridge::start() {
     // Read the system info of all the registered systems
     while (true) {
         if (readFromSocket(sock, data) == -1) {
-            LOG << "[SW-AXI] Error while receiving the simulator info" << std::endl;
             disconnect();
-            return -1;
+            return Status(1, std::string("Error while receiving the peer info: ") + strerror(errno));
         }
         msg = wire::GetMessage(data.data());
 
@@ -258,24 +242,24 @@ int Bridge::start() {
     }
 
     if (msg->type() == wire::Type_ERROR) {
-        LOG << "[SW-AXI] Error while receiving the peer list: " << msg->errorMessage()->str() << std::endl;
+        std::ostringstream o;
+        o << "Error while receiving the peer list: " << msg->errorMessage()->str();
         disconnect();
-        return -1;
+        return Status(1, o.str());
     }
 
     if (msg->type() != wire::Type_ACK) {
-        LOG << "[SW-AXI] Got an unexpected response while receiving peer list: ";
-        LOG << msg->type() << std::endl;
+        std::ostringstream o;
+        o << "Got an unexpected response while receiving peer list: " << msg->type();
         disconnect();
-        return -1;
+        return Status(1, o.str());
     }
 
     // Read the IP info of all the registered IP blocks
     while (true) {
         if (readFromSocket(sock, data) == -1) {
-            LOG << "[SW-AXI] Error while receiving the simulator info" << std::endl;
             disconnect();
-            return -1;
+            return Status(1, std::string("Error while receiving the peer info: ") + strerror(errno));
         }
         msg = wire::GetMessage(data.data());
 
@@ -306,43 +290,41 @@ int Bridge::start() {
     }
 
     if (msg->type() == wire::Type_ERROR) {
-        LOG << "[SW-AXI] Error while receiving the IP list: " << msg->errorMessage()->str() << std::endl;
+        std::ostringstream o;
+        o << "Error while receiving the IP list: " << msg->errorMessage()->str();
         disconnect();
-        return -1;
+        return Status(1, o.str());
     }
 
     if (msg->type() != wire::Type_ACK) {
-        LOG << "[SW-AXI] Got an unexpected response while receiving IP list: ";
-        LOG << msg->type() << std::endl;
+        std::ostringstream o;
+        o << "[SW-AXI] Got an unexpected response while receiving IP list: " << msg->type();
         disconnect();
-        return -1;
+        return Status(1, o.str());
     }
 
     state = State::STARTED;
-    return 0;
+    return Status();
 }
 
-int Bridge::enumerateIp(std::vector<IpConfig> &ip) {
+Status Bridge::enumerateIp(std::vector<IpConfig> &ip) {
     if (state != State::STARTED) {
-        LOG << "[SW-AXI] The bridge needs to be started in order to enumerate IPs" << std::endl;
-        return -1;
+        return Status(1, "The bridge needs to be started in order to enumerate IPs");
     }
     ip = ipBlocks;
-    return 0;
+    return Status();
 }
 
-int Bridge::enumeratePeers(std::vector<SystemInfo> &peers) {
+Status Bridge::enumeratePeers(std::vector<SystemInfo> &peers) {
     if (state != State::STARTED) {
-        LOG << "[SW-AXI] The bridge needs to be started in order to enumerate peers" << std::endl;
-        return -1;
+        return Status(1, "The bridge needs to be started in order to enumerate peers");
     }
     peers = this->peers;
-    return 0;
+    return Status();
 }
 
 void Bridge::disconnect() {
     if (sock == -1) {
-        LOG << "[SW-AXI] Not connected" << std::endl;
         return;
     }
 

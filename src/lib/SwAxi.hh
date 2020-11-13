@@ -19,46 +19,16 @@
 
 #pragma once
 
+#include "../common/Data.hh"
+
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace sw_axi {
-
-/**
- * Properties of a connected system
- */
-struct SystemInfo {
-    std::string name;
-    std::string systemName;
-    uint64_t pid;
-    std::string hostname;
-};
-
-/**
- * Type of the IP registered IP
- */
-enum class IpType { SLAVE, SLAVE_LITE, SLAVE_STREAM, MASTER, MASTER_LITE, MASTER_STREAM };
-
-/**
- * Implementation type of the registered IP
- */
-enum class IpImplementation { SOFTWARE, HARDWARE };
-
-/**
- * Information about an IP block
- */
-struct IpConfig {
-    std::string name;
-    uint64_t address = 0;  //!< Address of the slave
-    uint64_t size = 0;  //!< Size of the address space allocated to the slave
-    uint16_t firstInterrupt = 0;  //!< Number of the first interrupt allocated to the slave
-    uint16_t numInterrupts = 0;  //!< Number of interrupts allocated to the slave
-    IpType type = IpType::SLAVE;
-    IpImplementation implementation = IpImplementation::SOFTWARE;
-};
 
 /**
  * Bus transaction data
@@ -103,14 +73,12 @@ public:
     Bridge(const std::string &name = "unnamed") : name(name) {}
 
     /**
-     * Connect to the SystemVerilog simulator
+     * Connect to the router
      *
-     * @param uri an URI pointing to a rendez-vous point with the simulator; currently only UNIX domain sockets are
+     * @param uri an URI pointing to a rendez-vous point with the router; currently only UNIX domain sockets are
      *            supported
-     *
-     * @return 0 on success; -1 on failure
      */
-    int connect(std::string uri = "unix:///tmp/sw-axi");
+    Status connect(std::string uri = "unix:///tmp/sw-axi");
 
     /**
      * Retrieve the information about the router
@@ -121,44 +89,34 @@ public:
 
     /**
      * Register a software slave with the given parameters. The bridge takes the ownership of thw slave object.
-     *
-     * @return 0 on success; -1 on failure
      */
-    int registerSlave(Slave *slave, const IpConfig &config);
+    Status registerSlave(Slave *slave, const IpConfig &config);
 
     /**
      * Confirm that all IP has been registered.
      *
      * Calling this method will make the subsequent calls to `registerSlave` fail.
-     *
-     * @return 0 on success; -1 on failure
      */
-    int commitIp();
+    Status commitIp();
 
     /**
      * Start the bridge and make it handle the transaction traffic.
-     *
-     * @return 0 on success; -1 on failure
      */
-    int start();
+    Status start();
 
     /**
      * Enumerate the available IP blocks
      *
      * @param ip reference to a vector to be filled with the IP information
-     *
-     * @return 0 on success; -1 on failure
      */
-    int enumerateIp(std::vector<IpConfig> &ip);
+    Status enumerateIp(std::vector<IpConfig> &ip);
 
     /**
      * Enumerate the connected peers
      *
      * @param peers reference to a vector to be filled with peer information
-     *
-     * @return 0 on success; -1 on failure
      */
-    int enumeratePeers(std::vector<SystemInfo> &si);
+    Status enumeratePeers(std::vector<SystemInfo> &si);
 
     /**
      * Disconnect from the simulator.

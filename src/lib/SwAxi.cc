@@ -18,96 +18,23 @@
 //------------------------------------------------------------------------------
 
 #include "SwAxi.hh"
-#include "../common/Utils.hh"
-#include "IpcStructs_generated.h"
-
-#include <cstring>
-#include <errno.h>
-#include <iostream>
-#include <sstream>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <sys/utsname.h>
-#include <unistd.h>
+#include "../common/RouterClient.hh"
 
 namespace sw_axi {
 
+Bridge::Bridge(const std::string &name) : client(new RouterClient()), name(name) {}
+
+Bridge::~Bridge() {
+    disconnect();
+    delete client;
+}
+
 Status Bridge::connect(std::string uri) {
-    if (state != State::DISCONNECTED) {
-        return Status(1, "The bridge needs to be disconnected for the connect operation to proceed");
+    std::pair<SystemInfo *, Status> ret = client->connect(uri, name);
+    if (ret.second.isError()) {
+        return ret.second;
     }
-
-    if (uri.length() < 8 || uri.find("unix://") != 0) {
-        return Status(1, "Can only communicate over UNIX domain sockets:" + uri);
-    }
-    std::string path = uri.substr(7);
-
-    sockaddr_un addr;
-    if (path.length() > sizeof(addr.sun_path) - 1) {
-        return Status(1, "Path too long: " + path);
-    }
-
-    sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (sock == -1) {
-        return Status(1, std::string("Unable to create a UNIX socket: ") + strerror(errno));
-    }
-
-    memset(&addr, 0, sizeof(sockaddr_un));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
-
-    if (::connect(sock, reinterpret_cast<sockaddr *>(&addr), sizeof(sockaddr_un)) == -1) {
-        disconnect();
-        return Status(1, std::string("Unable to connect to the UNIX socket ") + path + ": " + strerror(errno));
-    }
-
-    connectedUri = uri;
-
-    std::ostringstream o;
-    utsname sysInfo;
-    uname(&sysInfo);
-    o << sysInfo.sysname << " C++";
-
-    flatbuffers::FlatBufferBuilder builder(1024);
-    auto bName = builder.CreateString(name);
-    auto sysName = builder.CreateString(o.str());
-    auto hName = builder.CreateString(sysInfo.nodename);
-    sw_axi::wire::SystemInfoBuilder siBuilder(builder);
-    siBuilder.add_name(bName);
-    siBuilder.add_systemName(sysName);
-    siBuilder.add_pid(getpid());
-    siBuilder.add_hostname(hName);
-    auto si = siBuilder.Finish();
-
-    sw_axi::wire::MessageBuilder msgBuilder(builder);
-    msgBuilder.add_type(sw_axi::wire::Type_SYSTEM_INFO);
-    msgBuilder.add_systemInfo(si);
-    builder.Finish(msgBuilder.Finish());
-
-    if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
-        disconnect();
-        return Status(1, std::string("Error while sending the system info: ") + strerror(errno));
-    }
-
-    std::vector<uint8_t> data;
-    if (readFromSocket(sock, data) == -1) {
-        disconnect();
-        return Status(1, std::string("Error while receiving the router's system info:") + strerror(errno));
-    }
-    auto msg = wire::GetMessage(data.data());
-
-    if (msg->type() != wire::Type_SYSTEM_INFO) {
-        disconnect();
-        return Status(1, "Received an unexpected message from the router: " + std::to_string(int(msg->type())));
-    }
-
-    routerInfo = std::make_unique<SystemInfo>();
-    routerInfo->name = msg->systemInfo()->name()->str();
-    routerInfo->systemName = msg->systemInfo()->systemName()->str();
-    routerInfo->pid = msg->systemInfo()->pid();
-    routerInfo->hostname = msg->systemInfo()->hostname()->str();
-    state = State::CONNECTED;
+    routerInfo.reset(ret.first);
     return Status();
 }
 
@@ -116,199 +43,49 @@ const SystemInfo *Bridge::getRouterInfo() const {
 }
 
 Status Bridge::registerSlave(Slave *slave, const IpConfig &config) {
-    if (state != State::CONNECTED) {
-        return Status(1, "Can register slaves only in CONNECTED mode");
+    std::pair<uint64_t, Status> ret = client->registerSlave(config);
+    if (ret.second.isError()) {
+        return ret.second;
     }
-
-    flatbuffers::FlatBufferBuilder builder(1024);
-    auto fbName = builder.CreateString(config.name);
-    sw_axi::wire::IpInfoBuilder ipBuilder(builder);
-    ipBuilder.add_name(fbName);
-    ipBuilder.add_address(config.address);
-    ipBuilder.add_size(config.size);
-    ipBuilder.add_implementation(wire::ImplementationType_SOFTWARE);
-
-    switch (config.type) {
-    case IpType::SLAVE_LITE:
-        ipBuilder.add_type(wire::IpType_SLAVE_LITE);
-        break;
-    default:
-        return Status(1, "Unknown slave type for slave: " + std::to_string(int(config.type)));
-    }
-    auto ip = ipBuilder.Finish();
-
-    sw_axi::wire::MessageBuilder msgBuilder(builder);
-    msgBuilder.add_type(sw_axi::wire::Type_IP_INFO);
-    msgBuilder.add_ipInfo(ip);
-    builder.Finish(msgBuilder.Finish());
-
-    if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
-        disconnect();
-        return Status(1, std::string("Error while sending the IP_INFO message to router: ") + strerror(errno));
-    }
-
-    std::vector<uint8_t> data;
-    if (readFromSocket(sock, data) == -1) {
-        disconnect();
-        return Status(1, std::string("Error while receiving response to IP registration ") + strerror(errno));
-    }
-
-    auto msg = wire::GetMessage(data.data());
-    if (msg->type() == wire::Type_ERROR) {
-        std::ostringstream o;
-        o << "Cannot register IP " << config.name << ": " << msg->errorMessage()->str();
-        disconnect();
-        return Status(1, o.str());
-    }
-
-    if (msg->type() != wire::Type_IP_ACK) {
-        std::ostringstream o;
-        o << "Got an unexpected response while registering IP " << config.name << ": " << msg->type();
-        disconnect();
-        return Status(1, o.str());
-    }
-
-    slaveMap[msg->ipId()] = slave;
+    slaveMap[ret.first] = slave;
     return Status();
 }
 
 Status Bridge::commitIp() {
-    if (state != State::CONNECTED) {
-        return Status(1, "Can commit slaves only in CONNECTED mode");
-    }
-
-    flatbuffers::FlatBufferBuilder builder(1024);
-    sw_axi::wire::MessageBuilder msgBuilder(builder);
-    msgBuilder.add_type(sw_axi::wire::Type_COMMIT);
-    builder.Finish(msgBuilder.Finish());
-
-    if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
-        disconnect();
-        return Status(1, std::string("Error while sending the COMMIT message: ") + strerror(errno));
-    }
-
-    std::vector<uint8_t> data;
-    if (readFromSocket(sock, data) == -1) {
-        disconnect();
-        return Status(1, std::string("Error while receiving commit acknowledgement: ") + strerror(errno));
-    }
-
-    auto msg = wire::GetMessage(data.data());
-    if (msg->type() == wire::Type_ERROR) {
-        std::ostringstream o;
-        o << "Cannot register IP: " << msg->errorMessage()->str();
-        disconnect();
-        return Status(1, o.str());
-    }
-
-    if (msg->type() != wire::Type_ACK) {
-        std::ostringstream o;
-        o << "[SW-AXI] Got an unexpected response while committing IP: " << msg->type();
-        disconnect();
-        return Status(1, o.str());
-    }
-
-    state = State::COMMITTED;
-
-    return Status();
+    return client->commitIp();
 }
 
 Status Bridge::start() {
-    if (state != State::COMMITTED) {
-        return Status(1, "The bridge needs to be COMMITTED in order to start");
-    }
-
-    std::vector<uint8_t> data;
-    const wire::Message *msg;
-
-    // Read the system info of all the registered systems
     while (true) {
-        if (readFromSocket(sock, data) == -1) {
+        std::pair<SystemInfo *, Status> ret = client->retrievePeerInfo();
+        if (ret.second.isError()) {
             disconnect();
-            return Status(1, std::string("Error while receiving the peer info: ") + strerror(errno));
+            return ret.second;
         }
-        msg = wire::GetMessage(data.data());
-
-        if (msg->type() != wire::Type_SYSTEM_INFO) {
+        if (!ret.first) {
             break;
         }
-
-        SystemInfo si;
-        si.name = msg->systemInfo()->name()->str();
-        si.systemName = msg->systemInfo()->systemName()->str();
-        si.pid = msg->systemInfo()->pid();
-        si.hostname = msg->systemInfo()->hostname()->str();
-        peers.push_back(si);
+        peers.push_back(*ret.first);
+        delete ret.first;
     }
 
-    if (msg->type() == wire::Type_ERROR) {
-        std::ostringstream o;
-        o << "Error while receiving the peer list: " << msg->errorMessage()->str();
-        disconnect();
-        return Status(1, o.str());
-    }
-
-    if (msg->type() != wire::Type_ACK) {
-        std::ostringstream o;
-        o << "Got an unexpected response while receiving peer list: " << msg->type();
-        disconnect();
-        return Status(1, o.str());
-    }
-
-    // Read the IP info of all the registered IP blocks
     while (true) {
-        if (readFromSocket(sock, data) == -1) {
+        std::pair<IpConfig *, Status> ret = client->retrieveIpConfig();
+        if (ret.second.isError()) {
             disconnect();
-            return Status(1, std::string("Error while receiving the peer info: ") + strerror(errno));
+            return ret.second;
         }
-        msg = wire::GetMessage(data.data());
-
-        if (msg->type() != wire::Type_IP_INFO) {
+        if (!ret.first) {
             break;
         }
-
-        IpConfig ip;
-        ip.name = msg->ipInfo()->name()->str();
-        ip.address = msg->ipInfo()->address();
-        ip.size = msg->ipInfo()->size();
-        ip.firstInterrupt = msg->ipInfo()->firstInterrupt();
-        ip.numInterrupts = msg->ipInfo()->numInterrupts();
-
-        switch (msg->ipInfo()->type()) {
-        case wire::IpType_SLAVE_LITE:
-            ip.type = IpType::SLAVE_LITE;
-            break;
-        default:
-            continue;
-        }
-
-        ip.implementation = msg->ipInfo()->implementation() == wire::ImplementationType_SOFTWARE ?
-                IpImplementation::SOFTWARE :
-                IpImplementation::HARDWARE;
-
-        ipBlocks.push_back(ip);
+        ipBlocks.push_back(*ret.first);
+        delete ret.first;
     }
-
-    if (msg->type() == wire::Type_ERROR) {
-        std::ostringstream o;
-        o << "Error while receiving the IP list: " << msg->errorMessage()->str();
-        disconnect();
-        return Status(1, o.str());
-    }
-
-    if (msg->type() != wire::Type_ACK) {
-        std::ostringstream o;
-        o << "[SW-AXI] Got an unexpected response while receiving IP list: " << msg->type();
-        disconnect();
-        return Status(1, o.str());
-    }
-
-    state = State::STARTED;
     return Status();
 }
 
 Status Bridge::enumerateIp(std::vector<IpConfig> &ip) {
-    if (state != State::STARTED) {
+    if (client->getState() != RouterClient::State::STARTED) {
         return Status(1, "The bridge needs to be started in order to enumerate IPs");
     }
     ip = ipBlocks;
@@ -316,7 +93,7 @@ Status Bridge::enumerateIp(std::vector<IpConfig> &ip) {
 }
 
 Status Bridge::enumeratePeers(std::vector<SystemInfo> &peers) {
-    if (state != State::STARTED) {
+    if (client->getState() != RouterClient::State::STARTED) {
         return Status(1, "The bridge needs to be started in order to enumerate peers");
     }
     peers = this->peers;
@@ -324,14 +101,7 @@ Status Bridge::enumeratePeers(std::vector<SystemInfo> &peers) {
 }
 
 void Bridge::disconnect() {
-    if (sock == -1) {
-        return;
-    }
-
-    close(sock);
-    state = State::DISCONNECTED;
-    connectedUri = "";
-    sock = -1;
+    client->disconnect();
     routerInfo.reset(nullptr);
     ipBlocks.clear();
 

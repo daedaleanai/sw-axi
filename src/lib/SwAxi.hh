@@ -61,6 +61,8 @@ public:
     virtual int handleRead(Buffer *buffer) = 0;
 };
 
+class RouterClient;
+
 /**
  * Bridge is the software entry point of the infrastructure.
  *
@@ -70,7 +72,8 @@ public:
  */
 class Bridge {
 public:
-    Bridge(const std::string &name = "unnamed") : name(name) {}
+    Bridge(const std::string &name = "unnamed");
+    ~Bridge();
 
     /**
      * Connect to the router
@@ -119,21 +122,12 @@ public:
     Status enumeratePeers(std::vector<SystemInfo> &si);
 
     /**
-     * Disconnect from the simulator.
+     * Disconnect from the router.
      */
     void disconnect();
 
 private:
-    enum class State {
-        DISCONNECTED,
-        CONNECTED,
-        COMMITTED,
-        STARTED,
-    };
-
-    State state = State::DISCONNECTED;
-    std::string connectedUri;
-    int sock = -1;
+    RouterClient *client;
     std::unique_ptr<SystemInfo> routerInfo;
     std::vector<SystemInfo> peers;
     std::vector<IpConfig> ipBlocks;

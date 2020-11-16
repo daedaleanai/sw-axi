@@ -5,7 +5,7 @@
 int main(int argc, char **argv) {
     using namespace sw_axi;
 
-    Bridge bridge("00-version");
+    Bridge bridge("00-version-cpp");
 
     Status st = bridge.connect();
     if (st.isError()) {

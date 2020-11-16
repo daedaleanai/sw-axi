@@ -30,6 +30,9 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
+#define STR0(x) #x
+#define STR1(x) STR0(x)
+
 namespace sw_axi {
 
 std::pair<SystemInfo *, Status> RouterClient::connect(const std::string &uri, const std::string &name) {
@@ -70,7 +73,12 @@ std::pair<SystemInfo *, Status> RouterClient::connect(const std::string &uri, co
     std::ostringstream o;
     utsname sysInfo;
     uname(&sysInfo);
+
+#ifndef SIM_ID
     o << sysInfo.sysname << " C++";
+#else
+    o << STR1(SIM_ID);
+#endif
 
     flatbuffers::FlatBufferBuilder builder(1024);
     auto bName = builder.CreateString(name);

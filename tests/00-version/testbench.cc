@@ -7,8 +7,9 @@ int main(int argc, char **argv) {
 
     Bridge bridge("00-version");
 
-    if (bridge.connect() != 0) {
-        std::cerr << "Unable to connect to the router" << std::endl;
+    Status st = bridge.connect();
+    if (st.isError()) {
+        std::cerr << "Unable to connect to the router: " << st.getMessage() << std::endl;
         return 1;
     }
 

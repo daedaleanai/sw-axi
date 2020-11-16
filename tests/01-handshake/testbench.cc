@@ -19,8 +19,9 @@ int main(int argc, char **argv) {
 
     Bridge bridge("01-handshake-cpp");
 
-    if (bridge.connect() != 0) {
-        std::cerr << "Unable to connect to the router" << std::endl;
+    Status st = bridge.connect();
+    if (st.isError()) {
+        std::cerr << "Unable to connect to the router: " << st.getMessage() << std::endl;
         return 1;
     }
 
@@ -42,24 +43,28 @@ int main(int argc, char **argv) {
             .type = IpType::SLAVE_LITE,
             .implementation = IpImplementation::SOFTWARE};
 
-    if (bridge.registerSlave(ram, ramConfig) != 0) {
-        std::cerr << "Unable to register the Soft-RAM slave" << std::endl;
+    st = bridge.registerSlave(ram, ramConfig);
+    if (st.isError()) {
+        std::cerr << "Unable to register the Soft-RAM slave: " << st.getMessage() << std::endl;
         return 1;
     }
 
-    if (bridge.commitIp() != 0) {
-        std::cerr << "Unable to commit the IP" << std::endl;
+    st = bridge.commitIp();
+    if (st.isError()) {
+        std::cerr << "Unable to commit the IP: " << st.getMessage() << std::endl;
         return 1;
     }
 
-    if (bridge.start() != 0) {
-        std::cerr << "Unable to start the bridge" << std::endl;
+    st = bridge.start();
+    if (st.isError()) {
+        std::cerr << "Unable to start the bridge: " << st.getMessage() << std::endl;
         return 1;
     }
 
     std::vector<SystemInfo> peers;
-    if (bridge.enumeratePeers(peers) != 0) {
-        std::cerr << "Unable to enumerate peers" << std::endl;
+    st = bridge.enumeratePeers(peers);
+    if (st.isError()) {
+        std::cerr << "Unable to enumerate peers: " << st.getMessage() << std::endl;
         return 1;
     }
 
@@ -72,8 +77,9 @@ int main(int argc, char **argv) {
     std::cerr << std::endl;
 
     std::vector<IpConfig> ipBlocks;
-    if (bridge.enumerateIp(ipBlocks) != 0) {
-        std::cerr << "Unable to enumerate the IP" << std::endl;
+    st = bridge.enumerateIp(ipBlocks);
+    if (st.isError()) {
+        std::cerr << "Unable to enumerate the IP " << st.getMessage() << std::endl;
         return 1;
     }
 

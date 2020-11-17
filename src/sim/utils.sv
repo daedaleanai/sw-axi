@@ -17,96 +17,57 @@
 // along with SW-AXI.  If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------------
 
+import "DPI-C" function string sw_axi_status_get_msg(chandle status);
+import "DPI-C" function int unsigned sw_axi_status_get_code(chandle status);
+import "DPI-C" function void sw_axi_status_delete(chandle status);
+
+import "DPI-C" function string sw_axi_system_info_get_name(chandle systemInfo);
+import "DPI-C" function string sw_axi_system_info_get_system_name(chandle systemInfo);
+import "DPI-C" function longint unsigned sw_axi_system_info_get_pid(chandle systemInfo);
+import "DPI-C" function string sw_axi_system_info_get_hostname(chandle systemInfo);
+import "DPI-C" function void sw_axi_system_info_delete(chandle systemInfo);
+
 /**
- * A helper for managing ranges; typical semantics is: `[start, end)` meaning that the start of the range is
- * include in the range, but the end is not.
+ * Properties of a connected system
  */
 typedef struct {
-  longint unsigned rStart;
-  longint unsigned rEnd;
-} Range;
+  string name;
+  string systemName;
+  longint unsigned pid;
+  string hostname;
+} SystemInfo;
 
 /**
- * Transaction class
+ * Generic status indicator for operations
  */
-class DataTransaction;
-endclass
+class Status;
+  integer unsigned code;
+  string message;
 
-/**
- * A helper class for mapping request addresses to particular slave instances
- */
-class SlaveMap;
-  Slave slaveMap[longint unsigned];
-
-  /**
-   * Register a slave in the map. The call may fail if adding the slave would introduce a conflict in the memory map.
-   *
-   * @return 0 on success; 1 on failure
-   */
-  function int registerSlave(Slave slave);
-    bit conflict = 'b0;
-
-    foreach (slaveMap[startAddr]) begin
-      if (slave.getAddressSpace().rEnd <= startAddr) begin
-        break;
-      end
-
-      if (slave.getAddressSpace().rStart >= slaveMap[startAddr].getAddressSpace().rEnd) begin
-        continue;
-      end
-
-      conflict = 'b1;
-    end
-
-    if (conflict == 'b1) begin
-      return -1;
-    end
-
-    slaveMap[slave.getAddressSpace().rStart] = slave;
-    return 0;
+  function integer isOk();
+    return code == 0;
   endfunction
 
-  /**
-   * Retrieve a slave associated with the particular address range
-   *
-   * @return the slave handle on success, null on failure
-   */
-  function Slave getSlave(Range addressSpace);
-    foreach (slaveMap[startAddr]) begin
-      if (addressSpace.rStart >= startAddr &&
-          addressSpace.rEnd <= slaveMap[startAddr].getAddressSpace().rEnd) begin
-        return slaveMap[startAddr];
-      end
-    end
-    return null;
-  endfunction
-
-  /**
-   * Get a queue of all slaves registered with the map
-   */
-  function void getSlaves(ref Slave slaves[$]);
-    foreach (slaveMap[startAddr]) begin
-      slaves.push_back(slaveMap[startAddr]);
-    end
+  function integer isError();
+    return code != 0;
   endfunction
 endclass
 
-/**
- * Helper for converting wire IP types into enums
- */
-function IpType convertIpType(int ipType);
-  case (ipType)
-    1: return SLAVE_LITE;
-    default: return SLAVE;
-  endcase
+
+function SystemInfo convertSystemInfo(chandle si);
+  SystemInfo systemInfo;
+  systemInfo.name = sw_axi_system_info_get_name(si);
+  systemInfo.systemName = sw_axi_system_info_get_system_name(si);
+  systemInfo.pid = sw_axi_system_info_get_pid(si);
+  systemInfo.hostname = sw_axi_system_info_get_hostname(si);
+  sw_axi_system_info_delete(si);
+  return systemInfo;
 endfunction
 
-/**
- * Helper for converting wire IP implementation types into enums
- */
-function IpImplementation convertIpImplementation(int ipImplementation);
-  case (ipImplementation)
-    0: return SOFTWARE;
-    default: return HARDWARE;
-  endcase
+function Status convertStatus(chandle st);
+  automatic Status status = new();
+  status.message = sw_axi_status_get_msg(st);
+  status.code = sw_axi_status_get_code(st);
+  sw_axi_status_delete(st);
+  return status;
 endfunction

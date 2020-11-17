@@ -1,11 +1,24 @@
 
 module testbench;
-  sw_axi::Bridge bridge = new();
+  sw_axi::Bridge bridge = new("00-version-sv");
   initial begin
-    if (bridge.connect() == 0) begin
-      $display("connected!");
+    sw_axi::Status st;
+    sw_axi::SystemInfo rInfo;
+
+    st = bridge.connect();
+    if (st.isError()) begin
+      $error("Unable to connect to the router: %s", st.message);
+      $finish();
     end
 
-    bridge.waitForDisconnect();
+    $display("Connected to the router:");
+    rInfo = bridge.routerInfo;
+    $display("Name:        %s", rInfo.name);
+    $display("System Name: %s", rInfo.systemName);
+    $display("Pid:         %d", rInfo.pid);
+    $display("Hostname:    %s", rInfo.hostname);
+    $display("Disconnecting");
+
+    bridge.disconnect();
   end
 endmodule

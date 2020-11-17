@@ -66,8 +66,8 @@ class RouterClient;
 /**
  * Bridge is the software entry point of the infrastructure.
  *
- * The bridge connects to a server, registers its IP components and receives the list of the components already
- * registered with the server. It can then send and receive requests directed at particular slaves as well as send and
+ * The bridge connects to a router, registers its IP components and receives the list of the components already
+ * registered with the router. It can then send and receive requests directed at particular slaves as well as send and
  * receive interrupt messages.
  */
 class Bridge {

@@ -138,7 +138,12 @@ std::pair<uint64_t, Status> RouterClient::registerSlave(const IpConfig &config) 
     ipBuilder.add_name(fbName);
     ipBuilder.add_address(config.address);
     ipBuilder.add_size(config.size);
-    ipBuilder.add_implementation(wire::ImplementationType_SOFTWARE);
+
+    if (config.implementation == IpImplementation::SOFTWARE) {
+        ipBuilder.add_implementation(wire::ImplementationType_SOFTWARE);
+    } else {
+        ipBuilder.add_implementation(wire::ImplementationType_HARDWARE);
+    }
 
     switch (config.type) {
     case IpType::SLAVE_LITE:

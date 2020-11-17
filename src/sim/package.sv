@@ -20,10 +20,9 @@
 package sw_axi;
 
   `include "utils.sv"
-  //  `include "interfaces.sv"
+  `include "interfaces.sv"
   `include "bridge.sv"
-  //  `include "axi4lite.sv"
-  //  `include "remote.sv"
+  `include "axi4lite.sv"
 
 endpackage
 

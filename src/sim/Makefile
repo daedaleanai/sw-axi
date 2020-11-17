@@ -13,7 +13,7 @@ sim: sw_axi.so
 sw_axi.so: bridge.cc ../common/Utils.hh ../common/Utils.cc ../common/IpcStructs_generated.h ../common/Data.hh ../common/RouterClient.cc ../common/RouterClient.hh
 > xsc bridge.cc ../common/Utils.cc ../common/RouterClient.cc -o sw_axi --cppversion 14 --gcc_compile_options '-DSIM_ID="`xsim --version`"'  --gcc_compile_options '-DVERBOSE'
 
-format: bridge.sv bridge.cc ../common/Utils.hh ../common/Utils.cc axi4lite.sv axi4lite.sv interfaces.sv package.sv remote.sv utils.sv
+format: bridge.sv bridge.cc ../common/Utils.hh ../common/Utils.cc axi4lite.sv axi4lite.sv interfaces.sv package.sv utils.sv
 > @$(code-format)
 
 clean:

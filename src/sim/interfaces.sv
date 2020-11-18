@@ -17,50 +17,22 @@
 // along with SW-AXI.  If not, see <https://www.gnu.org/licenses/>.
 //------------------------------------------------------------------------------
 
-/**
- * IP Types
- */
-typedef enum {
-  SLAVE,
-  SLAVE_LITE,
-  SLAVE_STREAM,
-  MASTER,
-  MASTER_LITE,
-  MASTER_STREAM
-} IpType;
 
-/**
- * IpImplementation types
- */
-typedef enum {
-  SOFTWARE,
-  HARDWARE
-} IpImplementation;
+typedef struct {
+  bit [7:0] data[
+      ];  //!< Payload of the transaction for write requests, a buffer to be filled by read requests
+  int unsigned size;  //!< Size of the buffer in bytes
+  longint unsigned address;  //!< Address of the transaction
+} Transaction;
+
 
 /**
  * A slave interface for concrete implementation of the translations layer between transaction objects
  * and the actual bus signals
  */
 virtual class Slave;
-  string name;
-  Range addressSpace;
-
-  function new(string name_, Range addressSpace_);
-    name = name_;
-    addressSpace = addressSpace_;
-  endfunction
-
-  function string getName();
-    return name;
-  endfunction
-
-  function Range getAddressSpace();
-    return addressSpace;
-  endfunction
-
-  pure virtual function IpType getType();
-  pure virtual function IpImplementation getImplementation();
-  pure virtual function int queueReadTransaction(DataTransaction txn);
-  pure virtual function int queueWriteTransaction(DataTransaction txn);
-  pure virtual task drive();
+  pure virtual function int queueReadTransaction(Transaction txn);
+  pure virtual function int queueWriteTransaction(Transaction txn);
+  pure virtual task driveReads();
+  pure virtual task driveWrites();
 endclass

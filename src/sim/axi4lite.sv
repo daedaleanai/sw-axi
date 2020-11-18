@@ -21,26 +21,17 @@
  * Slave interface handling the AXI4-Lite IP
  */
 class SlaveLite extends Slave;
-  function new(string name, Range addressSpace);
-    super.new(name, addressSpace);
-  endfunction
-
-  virtual function IpType getType();
-    return SLAVE_LITE;
-  endfunction
-
-  virtual function IpImplementation getImplementation();
-    return HARDWARE;
-  endfunction
-
-  virtual function int queueReadTransaction(DataTransaction txn);
+  virtual function int queueReadTransaction(Transaction txn);
     return 0;
   endfunction
 
-  virtual function int queueWriteTransaction(DataTransaction txn);
+  virtual function int queueWriteTransaction(Transaction txn);
     return 0;
   endfunction
 
-  virtual task drive();
+  virtual task driveReads();
+  endtask
+
+  virtual task driveWrites();
   endtask
 endclass

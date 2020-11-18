@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
     std::cerr << "Peers: " << std::endl;
     for (auto &peer : peers) {
         std::cerr << std::left << std::setfill(' ') << std::setw(20) << peer.name << " ";
-        std::cerr << std::left << std::setfill(' ') << std::setw(20) << peer.systemName << " ";
+        std::cerr << std::left << std::setfill(' ') << std::setw(25) << peer.systemName << " ";
         std::cerr << peer.hostname << ":" << peer.pid << std::endl;
     }
     std::cerr << std::endl;
@@ -103,8 +103,7 @@ int main(int argc, char **argv) {
         std::cerr << "interrupts: [";
         std::cerr << std::dec;
         std::cerr << std::setfill('0') << std::setw(5) << ip.firstInterrupt << "+";
-        if (ip.numInterrupts == 0)
-            std::cerr << std::setfill('0') << std::setw(5) << ip.numInterrupts << "] ";
+        std::cerr << std::setfill('0') << std::setw(5) << ip.numInterrupts << "] ";
         std::cerr << ip.name << " " << std::endl;
     }
 

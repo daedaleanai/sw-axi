@@ -194,7 +194,7 @@ extern "C" const char *sw_axi_ip_config_get_name(void *ipConfig) {
     return ipc->name.c_str();
 }
 
-extern "C" const char *
+extern "C" const void
 sw_axi_ip_config_get_address_and_size(void *ipConfig, unsigned long long *addr, unsigned long long *size) {
     if (!ipConfig || !addr || !size) {
         std::cerr << "Either of ipConfig, addr, or size pointers is null" << std::endl;
@@ -206,7 +206,7 @@ sw_axi_ip_config_get_address_and_size(void *ipConfig, unsigned long long *addr, 
     *size = ipc->size;
 }
 
-extern "C" const char *sw_axi_ip_config_get_interrupts(void *ipConfig, unsigned short *first, unsigned short *num) {
+extern "C" const void sw_axi_ip_config_get_interrupts(void *ipConfig, unsigned short *first, unsigned short *num) {
     if (!ipConfig || !first || !num) {
         std::cerr << "Either of ipConfig, first, or num pointers is null" << std::endl;
         std::terminate();
@@ -217,7 +217,7 @@ extern "C" const char *sw_axi_ip_config_get_interrupts(void *ipConfig, unsigned 
     *num = ipc->numInterrupts;
 }
 
-extern "C" const char *sw_axi_ip_config_get_type(void *ipConfig, int *typ, int *impl) {
+extern "C" const void sw_axi_ip_config_get_type(void *ipConfig, int *typ, int *impl) {
     if (!ipConfig || !typ || !impl) {
         std::cerr << "Either of ipConfig, typ, or impl pointers is null" << std::endl;
         std::terminate();

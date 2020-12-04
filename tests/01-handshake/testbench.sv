@@ -19,7 +19,7 @@ module testbench;
     rInfo = bridge.routerInfo;
     $display("Name:        %s", rInfo.name);
     $display("System Name: %s", rInfo.systemName);
-    $display("Pid:         %d", rInfo.pid);
+    $display("Pid:         %0d", rInfo.pid);
     $display("Hostname:    %s", rInfo.hostname);
 
     ramConfig.name = "RAM";
@@ -66,12 +66,13 @@ module testbench;
         sw_axi::SLAVE_LITE: $write("[SLAVE LITE] ");
         default: $write("   [UNKNOWN] ");
       endcase
-      $write("address: [0x%h+0x%016h] ", ip.address, ip.size);
+      $write("address: [0x%016h+0x%016h] ", ip.address, ip.size);
       $write("interrupts: [%05d+%05d] ", ip.firstInterrupt, ip.numInterrupts);
       $write("%s\n", ip.name);
     end
 
     $display("Disconnecting");
     bridge.disconnect();
+    $finish;
   end
 endmodule

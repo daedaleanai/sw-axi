@@ -15,10 +15,11 @@ module testbench;
     rInfo = bridge.routerInfo;
     $display("Name:        %s", rInfo.name);
     $display("System Name: %s", rInfo.systemName);
-    $display("Pid:         %d", rInfo.pid);
+    $display("Pid:         %0d", rInfo.pid);
     $display("Hostname:    %s", rInfo.hostname);
     $display("Disconnecting");
 
     bridge.disconnect();
+    $finish;
   end
 endmodule

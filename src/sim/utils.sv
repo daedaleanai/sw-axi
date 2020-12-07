@@ -93,6 +93,20 @@ typedef struct {
   IpImplementation implementation;
 } IpConfig;
 
+function void printIpConfig(IpConfig ip);
+  if (ip.implementation == SOFTWARE) begin
+    $write("[SW] ");
+  end else begin
+    $write("[HW] ");
+  end
+  case (ip.typ)
+    SLAVE_LITE: $write("[SLAVE LITE] ");
+    default: $write("   [UNKNOWN] ");
+  endcase
+  $write("address: [0x%016h+0x%016h] ", ip.address, ip.size);
+  $write("interrupts: [%05d+%05d] ", ip.firstInterrupt, ip.numInterrupts);
+  $write("%s\n", ip.name);
+endfunction
 
 function SystemInfo convertSystemInfo(chandle si);
   SystemInfo systemInfo;

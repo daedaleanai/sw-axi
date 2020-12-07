@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <string>
+#include <ostream>
 
 namespace sw_axi {
 /**
@@ -31,6 +32,8 @@ struct SystemInfo {
     std::string systemName;
     uint64_t pid;
     std::string hostname;
+
+    void print(std::ostream &o);
 };
 
 /**
@@ -54,6 +57,8 @@ struct IpConfig {
     uint16_t numInterrupts = 0;  //!< Number of interrupts allocated to the slave
     IpType type = IpType::SLAVE;
     IpImplementation implementation = IpImplementation::SOFTWARE;
+
+    void print(std::ostream &o);
 };
 
 /**

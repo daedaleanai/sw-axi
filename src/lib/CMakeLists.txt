@@ -3,7 +3,7 @@ add_library(
   SwAxi.cc                   SwAxi.hh
   ../common/RouterClient.cc  ../common/RouterClient.hh
   ../common/Utils.cc         ../common/Utils.hh
-  ../common/Data.hh
+  ../common/Data.hh          ../common/Data.cc
 )
 
 add_dependencies(sw-axi flatbuffer-cc)

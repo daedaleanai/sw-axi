@@ -52,11 +52,11 @@ public:
     std::pair<SystemInfo *, Status> connect(const std::string &uri, const std::string &name);
 
     /**
-     * Register a software slave with the given parameters. The ownership of the slave object stays with the user.
+     * Register an IP block with the given parameters
      *
      * @return a slave id-status pair; the ID is invalid if the status indicates failure
      */
-    std::pair<uint64_t, Status> registerSlave(const IpConfig &config);
+    std::pair<uint64_t, Status> registerIp(const IpConfig &config);
 
     /**
      * Confirm that all IP has been registered.

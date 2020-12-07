@@ -20,8 +20,8 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 #include <ostream>
+#include <string>
 
 namespace sw_axi {
 /**

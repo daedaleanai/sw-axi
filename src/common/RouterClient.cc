@@ -126,7 +126,7 @@ std::pair<SystemInfo *, Status> RouterClient::connect(const std::string &uri, co
     return std::make_pair(routerInfo, Status());
 }
 
-std::pair<uint64_t, Status> RouterClient::registerSlave(const IpConfig &config) {
+std::pair<uint64_t, Status> RouterClient::registerIp(const IpConfig &config) {
     if (state != State::CONNECTED) {
         Status st = Status(1, "Can register slaves only in CONNECTED mode");
         return std::make_pair(0, st);
@@ -146,11 +146,26 @@ std::pair<uint64_t, Status> RouterClient::registerSlave(const IpConfig &config) 
     }
 
     switch (config.type) {
+    case IpType::SLAVE:
+        ipBuilder.add_type(wire::IpType_SLAVE);
+        break;
     case IpType::SLAVE_LITE:
         ipBuilder.add_type(wire::IpType_SLAVE_LITE);
         break;
+    case IpType::SLAVE_STREAM:
+        ipBuilder.add_type(wire::IpType_SLAVE_STREAM);
+        break;
+    case IpType::MASTER:
+        ipBuilder.add_type(wire::IpType_MASTER);
+        break;
+    case IpType::MASTER_LITE:
+        ipBuilder.add_type(wire::IpType_MASTER_LITE);
+        break;
+    case IpType::MASTER_STREAM:
+        ipBuilder.add_type(wire::IpType_MASTER_STREAM);
+        break;
     default:
-        Status st = Status(1, "Unknown slave type for slave: " + std::to_string(int(config.type)));
+        Status st = Status(1, "Unknown IP type: " + std::to_string(int(config.type)));
         return std::make_pair(0, st);
     }
     auto ip = ipBuilder.Finish();
@@ -301,8 +316,23 @@ std::pair<IpConfig *, Status> RouterClient::retrieveIpConfig() {
         ip->numInterrupts = msg->ipInfo()->numInterrupts();
 
         switch (msg->ipInfo()->type()) {
+        case wire::IpType_SLAVE:
+            ip->type = IpType::SLAVE;
+            break;
         case wire::IpType_SLAVE_LITE:
             ip->type = IpType::SLAVE_LITE;
+            break;
+        case wire::IpType_SLAVE_STREAM:
+            ip->type = IpType::SLAVE_STREAM;
+            break;
+        case wire::IpType_MASTER:
+            ip->type = IpType::MASTER;
+            break;
+        case wire::IpType_MASTER_LITE:
+            ip->type = IpType::MASTER_LITE;
+            break;
+        case wire::IpType_MASTER_STREAM:
+            ip->type = IpType::MASTER_STREAM;
             break;
         default:
             Status st = Status(1, "Received a slave of unknown type: " + std::to_string(int(msg->ipInfo()->type())));

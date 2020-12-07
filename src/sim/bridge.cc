@@ -69,7 +69,7 @@ extern "C" void sw_axi_client_register_slave(
     cfg.numInterrupts = numInterrupts;
     cfg.type = IpType(type);
     cfg.implementation = IpImplementation(implementation);
-    std::pair<uint64_t, Status> ret = c->registerSlave(cfg);
+    std::pair<uint64_t, Status> ret = c->registerIp(cfg);
     *id = ret.first;
     *status = new Status(ret.second);
 }

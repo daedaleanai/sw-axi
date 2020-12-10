@@ -36,9 +36,12 @@ import (
 )
 
 type client struct {
+	Id         uint64
 	SystemInfo SystemInfo
 	wg         *sync.WaitGroup
 	conn       net.Conn
+	outgoing   chan []byte
+	incoming   chan []byte
 }
 
 func (c *client) readMsg() ([]byte, error) {
@@ -147,7 +150,18 @@ func (c *client) receiveIpInfo() (*IpInfo, error) {
 	case wire.ImplementationTypeHARDWARE:
 		impl = HARDWARE
 	}
-	return &IpInfo{string(ii.Name()), ii.Address(), ii.Size(), ii.FirstInterrupt(), ii.NumInterrupts(), typ, impl}, nil
+	return &IpInfo{
+			string(ii.Name()),
+			ii.Address(),
+			ii.Size(),
+			ii.FirstInterrupt(),
+			ii.NumInterrupts(),
+			typ,
+			impl,
+			0,
+			c.Id,
+		},
+		nil
 }
 
 func (c *client) ackIpInfo(id uint64) error {
@@ -168,13 +182,7 @@ func (c *client) ack() error {
 }
 
 func (c *client) sendError(err error) error {
-	builder := flatbuffers.NewBuilder(0)
-	msg := builder.CreateString(err.Error())
-	wire.MessageStart(builder)
-	wire.MessageAddType(builder, wire.TypeIP_ACK)
-	wire.MessageAddErrorMessage(builder, msg)
-	builder.Finish(wire.MessageEnd(builder))
-	return c.writeMsg(builder.FinishedBytes())
+	return c.writeMsg(createErrorMessage(err))
 }
 
 func (c *client) commit(clients []SystemInfo, ips []*IpInfo) error {
@@ -268,20 +276,51 @@ func (c *client) commit(clients []SystemInfo, ips []*IpInfo) error {
 }
 
 func (c *client) writer() {
+	for {
+		msgArr := <-c.outgoing
+		err := c.writeMsg(msgArr)
+		if err != nil {
+			log.Fatalf("Cannot write message to client %s: %s", c.SystemInfo.Name, err)
+		}
+
+		msg := wire.GetRootAsMessage(msgArr, 0)
+		log.Debugf("[%20s] Sent a message of type %s", c.SystemInfo.Name, wire.EnumNamesType[msg.Type()])
+		if msg.Type() == wire.TypeDONE {
+			break
+		}
+	}
 	c.wg.Done()
 }
 
 func (c *client) reader() {
+	for {
+		msgArr, err := c.readMsg()
+		if err != nil {
+			log.Fatalf("Cannot read a message from client %s: %s", c.SystemInfo.Name, err)
+			continue
+		}
+
+		msg := wire.GetRootAsMessage(msgArr, 0)
+		log.Debugf("[%20s] Received a message of type %s", c.SystemInfo.Name, wire.EnumNamesType[msg.Type()])
+		if msg.Type() == wire.TypeDONE {
+			break
+		}
+		c.incoming <- msgArr
+	}
 	c.wg.Done()
 }
 
 func (c *client) close() {
+	c.conn.Close()
+	log.Infof("[%20s] Logged out", c.SystemInfo.Name)
 }
 
-func newClient(conn net.Conn, wg *sync.WaitGroup) *client {
+func newClient(id int, conn net.Conn, incoming chan []byte, wg *sync.WaitGroup) *client {
 	c := new(client)
 	c.conn = conn
 	c.wg = wg
 	c.SystemInfo.Name = "unknown"
+	c.outgoing = make(chan []byte)
+	c.incoming = incoming
 	return c
 }

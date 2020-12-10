@@ -20,22 +20,28 @@
 #pragma once
 
 #include "../common/Data.hh"
+#include "Queue.hh"
 
 #include <cstdint>
+#include <future>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
 namespace sw_axi {
+
+class Bridge;
 
 /**
  * Bus transaction data
  */
 struct Buffer {
     uint8_t *data;  //!< Payload of the transaction for write requests, buffer to be filled by read requests
-    uint32_t size;  //!< Size of the data buffer in bytes
+    uint64_t size;  //!< Size of the data buffer in bytes
     uint64_t address;  //!< Address of the transaction
 };
 
@@ -59,6 +65,46 @@ public:
      * @return 0 on success; -1 on failure
      */
     virtual int handleRead(Buffer *buffer) = 0;
+};
+
+class Master {
+    friend class Bridge;
+
+public:
+    /**
+     * Issue a read transaction specified by the argument
+     *
+     * @return A future containing status of the operation when it completes; upon success, the buffer
+     *         will be filled with the requested data
+     */
+    std::future<Status> read(Buffer *buffer);
+
+    /**
+     * Issue a write transaction specified by the argument
+     *
+     * @return A future containing status of the operation when it completes; upon success, the buffer
+     *         will have been written to the associated slave device
+     */
+    std::future<Status> write(const Buffer *buffer);
+
+    /**
+     * Terminate the master; no further operation will be allowed
+     */
+    void terminate();
+
+private:
+    enum class TxnType { TRANSACTION, TERMINATION };
+
+    struct Txn {
+        TxnType type;
+        void *buffer = nullptr;
+        std::unique_ptr<Transaction> txn;
+        std::promise<Status> promise;  //!< Promise to be fulfilled when the response arrives
+    };
+
+    Master(uint64_t id, Queue<Txn> *queue) : id(id), queue(queue) {}
+    uint64_t id;
+    Queue<Txn> *queue;
 };
 
 class RouterClient;
@@ -96,6 +142,11 @@ public:
     Status registerSlave(Slave *slave, const IpConfig &config);
 
     /**
+     * Registers a master. The bridge owns the object.
+     */
+    std::pair<Master *, Status> registerMaster(const std::string &name);
+
+    /**
      * Confirm that all IP has been registered.
      *
      * Calling this method will make the subsequent calls to `registerSlave` fail.
@@ -106,6 +157,11 @@ public:
      * Start the bridge and make it handle the transaction traffic.
      */
     Status start();
+
+    /**
+     * Wait for the processing to finish
+     */
+    Status waitForCompletion();
 
     /**
      * Enumerate the available IP blocks
@@ -127,12 +183,30 @@ public:
     void disconnect();
 
 private:
+    struct MasterMd {
+        Master *master = nullptr;
+        std::map<uint64_t, Master::Txn> txns;
+        uint64_t lastTxnId = 0;
+    };
+
+    void reader();
+    void writer();
+    static void startReader(Bridge *b);
+    static void startWriter(Bridge *b);
+
     RouterClient *client;
     std::unique_ptr<SystemInfo> routerInfo;
     std::vector<SystemInfo> peers;
     std::vector<IpConfig> ipBlocks;
     std::map<uint64_t, Slave *> slaveMap;
+    std::map<uint64_t, MasterMd> masterMap;
     std::string name;
+    Queue<Master::Txn> queue;
+    std::thread readerThread;
+    std::thread writerThread;
+    Status readerStatus;
+    Status writerStatus;
+    std::mutex masterMapMutex;
 };
 
 }  // namespace sw_axi

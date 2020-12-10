@@ -1,0 +1,10 @@
+macro(define_exclusive)
+  cmake_parse_arguments(DEFINE_EXCLUSIVE "" "NAME" "CONFLICTS" ${ARGN} )
+  set(${DEFINE_EXCLUSIVE_NAME} TRUE)
+
+  foreach(CONFLICT ${DEFINE_EXCLUSIVE_CONFLICTS})
+    if (${${CONFLICT}})
+      set(${DEFINE_EXCLUSIVE_NAME} FALSE)
+    endif()
+  endforeach()  
+endmacro()

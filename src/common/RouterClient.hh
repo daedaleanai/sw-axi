@@ -37,7 +37,13 @@ public:
         COMMITTED,
         PEER_INFO_RECEIVED,
         STARTED,
+        LOGGED_OUT,
     };
+
+    /**
+     * Signal for the server completion message
+     */
+    const uint32_t DONE = 0xffffffff;
 
     /**
      * Connect to the SystemVerilog simulator
@@ -82,6 +88,31 @@ public:
      *         IP list is finished
      */
     std::pair<IpConfig *, Status> retrieveIpConfig();
+
+    /**
+     * Retrieves a transaction sent by the router
+     *
+     * @return the status of the operation and the transaction upon success; if the status code is equal to TERMINATED
+     *         then no new transaction will arrive; the caller takes the ownership of the transaction object
+     */
+    std::pair<Transaction *, Status> receiveTransaction();
+
+    /**
+     * Sends a transaction to the router
+     */
+    Status sendTransaction(const Transaction &txn);
+
+    /**
+     * Send a master termination notification
+     *
+     * @param id id of the master that has been terminated
+     */
+    Status sendTermination(uint64_t id);
+
+    /**
+     * Send a logout message
+     */
+    Status sendLogout();
 
     /**
      * Disconnect from server

@@ -365,6 +365,151 @@ std::pair<IpConfig *, Status> RouterClient::retrieveIpConfig() {
     return std::make_pair(nullptr, Status());
 }
 
+std::pair<Transaction *, Status> RouterClient::receiveTransaction() {
+    if (state != State::STARTED) {
+        Status st = Status(1, "The client needs be started befor receiving transactions");
+        return std::make_pair(nullptr, st);
+    }
+
+    std::vector<uint8_t> data;
+    const wire::Message *msg;
+
+    if (readFromSocket(sock, data) == -1) {
+        disconnect();
+        Status st = Status(1, std::string("Error while receiving the peer info: ") + strerror(errno));
+        return std::make_pair(nullptr, st);
+    }
+    msg = wire::GetMessage(data.data());
+
+    if (msg->type() == wire::Type_DONE) {
+        return std::make_pair(nullptr, Status(DONE, "Done processing"));
+    }
+
+    if (msg->type() != wire::Type_TRANSACTION) {
+        std::ostringstream o;
+        o << "Got an unexpected response instead of a transaction: " << msg->type();
+        disconnect();
+        return std::make_pair(nullptr, Status(1, o.str()));
+    }
+    Transaction *txn = new Transaction();
+
+    switch (msg->txn()->type()) {
+    case wire::TransactionType_READ_REQ:
+        txn->type = TransactionType::READ_REQ;
+        break;
+    case wire::TransactionType_WRITE_REQ:
+        txn->type = TransactionType::WRITE_REQ;
+        break;
+    case wire::TransactionType_READ_RESP:
+        txn->type = TransactionType::READ_RESP;
+        break;
+    case wire::TransactionType_WRITE_RESP:
+        txn->type = TransactionType::WRITE_RESP;
+        break;
+    default:
+        Status st = Status(1, "Received a transaction of unknown type: " + std::to_string(int(msg->txn()->type())));
+        return std::make_pair(nullptr, st);
+    }
+
+    txn->initiator = msg->txn()->initiator();
+    txn->target = msg->txn()->target();
+    txn->id = msg->txn()->id();
+    txn->address = msg->txn()->address();
+    txn->size = msg->txn()->size();
+    txn->data.resize(msg->txn()->data()->size());
+    memcpy(txn->data.data(), msg->txn()->data()->Data(), msg->txn()->data()->size());
+    txn->ok = msg->txn()->ok();
+    txn->message = msg->txn()->message()->str();
+
+    return std::make_pair(txn, Status());
+}
+
+Status RouterClient::sendTransaction(const Transaction &txn) {
+    if (state != State::STARTED) {
+        return Status(1, "The client needs be started befor sending transactions");
+    }
+
+    flatbuffers::FlatBufferBuilder builder(1024);
+    auto errMsg = builder.CreateString(txn.message);
+    auto data = builder.CreateVector(txn.data.data(), txn.data.size());
+
+    sw_axi::wire::TransactionBuilder txnBuilder(builder);
+    switch (txn.type) {
+    case TransactionType::READ_REQ:
+        txnBuilder.add_type(wire::TransactionType_READ_REQ);
+        break;
+    case TransactionType::WRITE_REQ:
+        txnBuilder.add_type(wire::TransactionType_WRITE_REQ);
+        break;
+    case TransactionType::READ_RESP:
+        txnBuilder.add_type(wire::TransactionType_READ_RESP);
+        break;
+    case TransactionType::WRITE_RESP:
+        txnBuilder.add_type(wire::TransactionType_WRITE_RESP);
+        break;
+    default:
+        return Status(1, "Unknown transaction type: " + std::to_string(int(txn.type)));
+    }
+
+    txnBuilder.add_initiator(txn.initiator);
+    txnBuilder.add_target(txn.target);
+    txnBuilder.add_id(txn.id);
+    txnBuilder.add_address(txn.address);
+    txnBuilder.add_size(txn.size);
+    txnBuilder.add_data(data);
+    txnBuilder.add_ok(txn.ok);
+    txnBuilder.add_message(errMsg);
+    auto txnData = txnBuilder.Finish();
+
+    sw_axi::wire::MessageBuilder msgBuilder(builder);
+    msgBuilder.add_type(sw_axi::wire::Type_TRANSACTION);
+    msgBuilder.add_txn(txnData);
+    builder.Finish(msgBuilder.Finish());
+
+    if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
+        disconnect();
+        return Status(1, std::string("Error while sending the TERMINATE message: ") + strerror(errno));
+    }
+    return Status();
+}
+
+Status RouterClient::sendTermination(uint64_t id) {
+    if (state != State::STARTED) {
+        return Status(1, "The client needs be started before sending termination messages");
+    }
+
+    flatbuffers::FlatBufferBuilder builder(1024);
+    sw_axi::wire::MessageBuilder msgBuilder(builder);
+    msgBuilder.add_type(sw_axi::wire::Type_TERMINATE);
+    msgBuilder.add_ipId(id);
+    builder.Finish(msgBuilder.Finish());
+
+    if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
+        disconnect();
+        return Status(1, std::string("Error while sending the TERMINATE message: ") + strerror(errno));
+    }
+    return Status();
+}
+
+Status RouterClient::sendLogout() {
+    if (state != State::STARTED) {
+        return Status(1, "The client needs be started before logging out");
+    }
+
+    flatbuffers::FlatBufferBuilder builder(1024);
+    sw_axi::wire::MessageBuilder msgBuilder(builder);
+    msgBuilder.add_type(sw_axi::wire::Type_DONE);
+    builder.Finish(msgBuilder.Finish());
+
+    if (sw_axi::writeToSocket(sock, builder.GetBufferPointer(), builder.GetSize()) == -1) {
+        disconnect();
+        return Status(1, std::string("Error while sending the DONE message: ") + strerror(errno));
+    }
+
+    state = State::LOGGED_OUT;
+    return Status();
+}
+
 void RouterClient::disconnect() {
     if (sock == -1) {
         return;

@@ -293,7 +293,7 @@ std::pair<SystemInfo *, Status> RouterClient::retrievePeerInfo() {
 
 std::pair<IpConfig *, Status> RouterClient::retrieveIpConfig() {
     if (state != State::PEER_INFO_RECEIVED) {
-        Status st = Status(1, "The client needs to receive all the peer info before receiving IP info");
+        Status st = Status(1, "The client needs to receive all the peer infos before receiving IP info");
         return std::make_pair(nullptr, st);
     }
 
@@ -302,7 +302,7 @@ std::pair<IpConfig *, Status> RouterClient::retrieveIpConfig() {
 
     if (readFromSocket(sock, data) == -1) {
         disconnect();
-        Status st = Status(1, std::string("Error while receiving the peer info: ") + strerror(errno));
+        Status st = Status(1, std::string("Error while receiving the IP info: ") + strerror(errno));
         return std::make_pair(nullptr, st);
     }
     msg = wire::GetMessage(data.data());
@@ -376,7 +376,7 @@ std::pair<Transaction *, Status> RouterClient::receiveTransaction() {
 
     if (readFromSocket(sock, data) == -1) {
         disconnect();
-        Status st = Status(1, std::string("Error while receiving the peer info: ") + strerror(errno));
+        Status st = Status(1, std::string("Error while receiving a transaction: ") + strerror(errno));
         return std::make_pair(nullptr, st);
     }
     msg = wire::GetMessage(data.data());
@@ -416,8 +416,11 @@ std::pair<Transaction *, Status> RouterClient::receiveTransaction() {
     txn->id = msg->txn()->id();
     txn->address = msg->txn()->address();
     txn->size = msg->txn()->size();
-    txn->data.resize(msg->txn()->data()->size());
-    memcpy(txn->data.data(), msg->txn()->data()->Data(), msg->txn()->data()->size());
+
+    if (msg->txn()->data()) {
+      txn->data.resize(msg->txn()->data()->size());
+      memcpy(txn->data.data(), msg->txn()->data()->Data(), msg->txn()->data()->size());
+    }
     txn->ok = msg->txn()->ok();
     txn->message = msg->txn()->message()->str();
 

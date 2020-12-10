@@ -418,8 +418,8 @@ std::pair<Transaction *, Status> RouterClient::receiveTransaction() {
     txn->size = msg->txn()->size();
 
     if (msg->txn()->data()) {
-      txn->data.resize(msg->txn()->data()->size());
-      memcpy(txn->data.data(), msg->txn()->data()->Data(), msg->txn()->data()->size());
+        txn->data.resize(msg->txn()->data()->size());
+        memcpy(txn->data.data(), msg->txn()->data()->Data(), msg->txn()->data()->size());
     }
     txn->ok = msg->txn()->ok();
     txn->message = msg->txn()->message()->str();

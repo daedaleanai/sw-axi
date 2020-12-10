@@ -38,5 +38,5 @@ add_subdirectory(tests)
 
 message(STATUS "----------------------------------------" )
 message(STATUS "Use Xsim:     " ${USE_XSIM} )
-message(STATUS "USE Modelsim: " ${USE_MODELSIM} )
+message(STATUS "Use Modelsim: " ${USE_MODELSIM} )
 message(STATUS "----------------------------------------" )

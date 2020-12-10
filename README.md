@@ -5,14 +5,14 @@ sw-axi
 Building and running instructions
 ---------------------------------
 
-`sw-axi` uses CMake for building. It requires the folloing packages on Debian/Ubuntu:
+`sw-axi` uses CMake for building. It requires the following packages on Debian/Ubuntu:
 
  * `build-essential`
  * `cmake`
  * `libflatbuffers-dev`
  * `golang`
 
-It also requires one of the folowing simulators:
+It also requires one of the following simulators:
 
  * Xilinx Xsim
  * Modelsim

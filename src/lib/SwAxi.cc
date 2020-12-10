@@ -34,8 +34,9 @@ std::future<Status> Master::read(Buffer *buffer) {
     txn.txn->address = buffer->address;
     txn.txn->size = buffer->size;
     txn.txn->ok = true;
+    auto future = txn.promise.get_future();
     queue->push(std::move(txn));
-    return txn.promise.get_future();
+    return future;
 }
 
 std::future<Status> Master::write(const Buffer *buffer) {
@@ -49,8 +50,9 @@ std::future<Status> Master::write(const Buffer *buffer) {
     txn.txn->data.resize(buffer->size);
     memcpy(txn.txn->data.data(), buffer->data, buffer->size);
     txn.txn->ok = true;
+    auto future = txn.promise.get_future();
     queue->push(std::move(txn));
-    return txn.promise.get_future();
+    return future;
 }
 
 void Master::terminate() {
@@ -234,7 +236,6 @@ void Bridge::reader() {
             }
 
             Transaction *respTxn = new Transaction;
-            ;
             Slave *s = slaveMap[txn->target];
             int ret = 0;
             Buffer b = {.size = txn->size, .address = txn->address};
@@ -280,6 +281,7 @@ void Bridge::writer() {
             return;
         }
 
+        Transaction *t = txn.txn.get();
         if (txn.type == Master::TxnType::TERMINATION) {
             Status st = client->sendTermination(txn.txn->id);
             if (st.isError()) {
@@ -295,7 +297,7 @@ void Bridge::writer() {
             masterMap[txn.txn->initiator].txns[txn.txn->id] = std::move(txn);
         }
 
-        Status st = client->sendTransaction(*txn.txn);
+        Status st = client->sendTransaction(*t);
         if (st.isError()) {
             writerStatus = st;
             return;

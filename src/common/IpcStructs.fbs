@@ -7,7 +7,10 @@ enum Type:byte {
   IP_ACK,
   ACK,
   ERROR,
-  COMMIT
+  COMMIT,
+  TERMINATE,
+  DONE,
+  TRANSACTION
 }
 
 enum IpType:byte {
@@ -22,6 +25,13 @@ enum IpType:byte {
 enum ImplementationType:byte {
   SOFTWARE,
   HARDWARE
+}
+
+enum TransactionType:byte {
+  READ_REQ,
+  WRITE_REQ,
+  READ_RESP,
+  WRITE_RESP
 }
 
 table SystemInfo {
@@ -41,12 +51,25 @@ table IpInfo {
   implementation:ImplementationType;
 }
 
+table Transaction {
+  type:TransactionType;
+  initiator:ulong;
+  target:ulong;
+  id:ulong;
+  address:ulong;
+  size:ulong;
+  data:[ubyte];
+  ok:bool;
+  message:string;
+}
+
 table Message {
   type:Type;
   systemInfo:SystemInfo;
   ipInfo:IpInfo;
   ipId:ulong;
   errorMessage:string;
+  txn:Transaction;
 }
 
 root_type Message;

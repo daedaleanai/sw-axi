@@ -48,27 +48,16 @@ module testbench;
       $finish();
     end
 
+    $display("\nPeers:");
     foreach (bridge.peers[i]) begin
       sw_axi::SystemInfo si;
       si = bridge.peers[i];
       $display("%20s %25s %s:%0d", si.name, si.systemName, si.hostname, si.pid);
     end
 
+    $display("\nIP blocks:");
     foreach (bridge.ipBlocks[i]) begin
-      sw_axi::IpConfig ip;
-      ip = bridge.ipBlocks[i];
-      if (ip.implementation == sw_axi::SOFTWARE) begin
-        $write("[SW] ");
-      end else begin
-        $write("[HW] ");
-      end
-      case (ip.typ)
-        sw_axi::SLAVE_LITE: $write("[SLAVE LITE] ");
-        default: $write("   [UNKNOWN] ");
-      endcase
-      $write("address: [0x%016h+0x%016h] ", ip.address, ip.size);
-      $write("interrupts: [%05d+%05d] ", ip.firstInterrupt, ip.numInterrupts);
-      $write("%s\n", ip.name);
+      sw_axi::printIpConfig(bridge.ipBlocks[i]);
     end
 
     $display("Disconnecting");

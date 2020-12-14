@@ -22,6 +22,11 @@
 
 package sw_axi
 
+import (
+	"fmt"
+	"strings"
+)
+
 type IpType int
 
 const (
@@ -47,6 +52,13 @@ type SystemInfo struct {
 	Pid        uint64
 }
 
+func (si SystemInfo) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s - %s - ", si.Name, si.SystemName))
+	sb.WriteString(fmt.Sprintf("%s:%d", si.Hostname, si.Pid))
+	return sb.String()
+}
+
 type IpInfo struct {
 	Name           string
 	Address        uint64
@@ -55,4 +67,36 @@ type IpInfo struct {
 	NumInterrupts  uint16
 	Type           IpType
 	Implementation IpImplementation
+	Id             uint64
+	ClientId       uint64
+}
+
+func (ip IpInfo) String() string {
+	var sb strings.Builder
+	if ip.Implementation == SOFTWARE {
+		sb.WriteString("[SW] ")
+	} else {
+		sb.WriteString("[HW] ")
+	}
+
+	switch ip.Type {
+	case SLAVE:
+		sb.WriteString("[SLAVE        ] ")
+	case SLAVE_LITE:
+		sb.WriteString("[SLAVE LITE   ] ")
+	case SLAVE_STREAM:
+		sb.WriteString("[SLAVE STREAM ] ")
+	case MASTER:
+		sb.WriteString("[MASTER       ] ")
+	case MASTER_LITE:
+		sb.WriteString("[MASTER LITE  ] ")
+	case MASTER_STREAM:
+		sb.WriteString("[MASTER STREAM] ")
+	}
+	sb.WriteString("address: ")
+	sb.WriteString(fmt.Sprintf("[0x%016x+0x%016x] ", ip.Address, ip.Size))
+	sb.WriteString("interrupts: ")
+	sb.WriteString(fmt.Sprintf("[%05d+%05d] ", ip.FirstInterrupt, ip.NumInterrupts))
+	sb.WriteString(ip.Name)
+	return sb.String()
 }

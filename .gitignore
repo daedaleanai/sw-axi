@@ -13,4 +13,5 @@ src/router/sw_axi/wire
 *_generated.h
 testbench
 go.sum
-router
+src/router/router
+

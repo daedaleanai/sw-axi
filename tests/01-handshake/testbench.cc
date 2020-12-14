@@ -70,9 +70,7 @@ int main(int argc, char **argv) {
 
     std::cerr << "Peers: " << std::endl;
     for (auto &peer : peers) {
-        std::cerr << std::left << std::setfill(' ') << std::setw(20) << peer.name << " ";
-        std::cerr << std::left << std::setfill(' ') << std::setw(25) << peer.systemName << " ";
-        std::cerr << peer.hostname << ":" << peer.pid << std::endl;
+        peer.print(std::cerr);
     }
     std::cerr << std::endl;
 
@@ -90,21 +88,7 @@ int main(int argc, char **argv) {
     }
 
     for (auto &ip : ipBlocks) {
-        std::cerr << ((ip.implementation == IpImplementation::SOFTWARE) ? "[SW]" : "[HW]") << " ";
-        switch (ip.type) {
-        case IpType::SLAVE_LITE:
-            std::cerr << "[SLAVE LITE] ";
-            break;
-        }
-        std::cerr << std::right;
-        std::cerr << "address: ";
-        std::cerr << "[0x" << std::hex << std::setfill('0') << std::setw(16) << ip.address << "+";
-        std::cerr << "0x" << std::hex << std::setfill('0') << std::setw(16) << ip.size << "] ";
-        std::cerr << "interrupts: [";
-        std::cerr << std::dec;
-        std::cerr << std::setfill('0') << std::setw(5) << ip.firstInterrupt << "+";
-        std::cerr << std::setfill('0') << std::setw(5) << ip.numInterrupts << "] ";
-        std::cerr << ip.name << " " << std::endl;
+        ip.print(std::cerr);
     }
 
     std::cerr << "Disconnecting" << std::endl;

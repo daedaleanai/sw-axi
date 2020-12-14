@@ -20,7 +20,9 @@
 #pragma once
 
 #include <cstdint>
+#include <ostream>
 #include <string>
+#include <vector>
 
 namespace sw_axi {
 /**
@@ -31,6 +33,8 @@ struct SystemInfo {
     std::string systemName;
     uint64_t pid;
     std::string hostname;
+
+    void print(std::ostream &o);
 };
 
 /**
@@ -54,6 +58,8 @@ struct IpConfig {
     uint16_t numInterrupts = 0;  //!< Number of interrupts allocated to the slave
     IpType type = IpType::SLAVE;
     IpImplementation implementation = IpImplementation::SOFTWARE;
+
+    void print(std::ostream &o);
 };
 
 /**
@@ -83,6 +89,26 @@ public:
 private:
     uint32_t code = 0;
     std::string msg;
+};
+
+/**
+ * Transaction types
+ */
+enum class TransactionType { READ_REQ, WRITE_REQ, READ_RESP, WRITE_RESP };
+
+/**
+ * Transaction
+ */
+struct Transaction {
+    TransactionType type = TransactionType::READ_REQ;  //!< Type of the transaction
+    uint64_t initiator = 0;  //!< The IP block that initiated the transaction
+    uint64_t target = 0;  //!< The IP block that processed the transaction; set by the router
+    uint64_t id = 0;  //!< The ID of the transaction; set by the initiator, echoed by all processors
+    uint64_t address = 0;  //!< Target address
+    uint64_t size = 0;  //!< Size of the requestd data
+    std::vector<uint8_t> data;  //!< Data buffer
+    bool ok;  //!< Status of a response
+    std::string message;  //!< An error message if a response is not OK
 };
 
 }  // namespace sw_axi

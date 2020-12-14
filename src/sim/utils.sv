@@ -93,6 +93,25 @@ typedef struct {
   IpImplementation implementation;
 } IpConfig;
 
+function void printIpConfig(IpConfig ip);
+  if (ip.implementation == SOFTWARE) begin
+    $write("[SW] ");
+  end else begin
+    $write("[HW] ");
+  end
+  case (ip.typ)
+    SLAVE: $write("[SLAVE         ] ");
+    SLAVE_LITE: $write("[SLAVE LITE    ] ");
+    SLAVE_STREAM: $write("[SLAVE STREAM  ] ");
+    MASTER: $write("[MASTER        ] ");
+    MASTER_LITE: $write("[MASTER LITE   ] ");
+    MASTER_STREAM: $write("[MASTER STREAM ] ");
+    default: $write("[UNKNOWN       ] ");
+  endcase
+  $write("address: [0x%016h+0x%016h] ", ip.address, ip.size);
+  $write("interrupts: [%05d+%05d] ", ip.firstInterrupt, ip.numInterrupts);
+  $write("%s\n", ip.name);
+endfunction
 
 function SystemInfo convertSystemInfo(chandle si);
   SystemInfo systemInfo;

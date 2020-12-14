@@ -36,6 +36,11 @@ include(SystemVerilog)
 add_subdirectory(src)
 add_subdirectory(tests)
 
+add_custom_target(
+  format
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/format.sh ${CMAKE_SOURCE_DIR}
+)
+
 message(STATUS "----------------------------------------" )
 message(STATUS "Use Xsim:     " ${USE_XSIM} )
 message(STATUS "Use Modelsim: " ${USE_MODELSIM} )
